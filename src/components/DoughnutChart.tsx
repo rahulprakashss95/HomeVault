@@ -2,6 +2,7 @@
 import React from "react";
 import { WebView } from "react-native-webview";
 import { currentOS } from "../utils/Utils";
+import { useTheme } from "../context/ThemeContext";
 
 type IDoughnutChart = {
   chartId: string;
@@ -10,11 +11,15 @@ type IDoughnutChart = {
 
 const DoughnutChart = (props: IDoughnutChart) => {
   const { chartId, chartData } = props;
+  const { colors } = useTheme();
 
   const chartHtml = `
     <html>
       <head>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+          body { margin: 0; background: transparent; }
+        </style>
       </head>
       <body>
         <canvas id="${chartId}"></canvas>
@@ -27,6 +32,7 @@ const DoughnutChart = (props: IDoughnutChart) => {
                 plugins: {
                     legend: {
                         labels: {
+                            color: ${JSON.stringify(colors.text)},
                             font: {
                                 size: ${currentOS == "web" ? "15" : "40"}
                             }
@@ -57,13 +63,20 @@ const DoughnutChart = (props: IDoughnutChart) => {
     <>
       {currentOS == "web" ? (
         <iframe
-          style={{ height: 300, width: 300, border: "none" }}
+          style={{
+            height: 300,
+            width: 300,
+            border: "none",
+            background: "transparent",
+          }}
           srcDoc={chartHtml}
         />
       ) : (
         <WebView
           source={{ html: chartHtml }}
-          style={{ height: 300, width: 300 }}
+          style={{ height: 300, width: 300, backgroundColor: "transparent" }}
+          backgroundColor="transparent"
+          opaque={false}
           onError={(syntheticEvent) =>
             console.error("WebView error:", syntheticEvent.nativeEvent)
           }

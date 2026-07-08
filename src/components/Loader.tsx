@@ -1,5 +1,6 @@
 import React from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { useTheme } from "../context/ThemeContext";
 
 type ILoader = {
   loading: boolean;
@@ -7,14 +8,15 @@ type ILoader = {
 
 const Loader = (props: ILoader) => {
   const { loading } = props;
+  const { colors } = useTheme();
 
   if (!loading) {
     return null;
   }
 
   return (
-    <View style={styles.overlay}>
-      <ActivityIndicator size="large" color="#0000ff" />
+    <View style={[styles.overlay, { backgroundColor: colors.overlay }]}>
+      <ActivityIndicator size="large" color={colors.primary} />
     </View>
   );
 };
@@ -22,7 +24,6 @@ const Loader = (props: ILoader) => {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255, 255, 255, 0.8)",
     justifyContent: "center",
     alignItems: "center",
     zIndex: 1,

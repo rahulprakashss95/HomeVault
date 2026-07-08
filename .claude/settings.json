@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash('/c/Program Files/Google/Chrome/Application/chrome.exe' --headless=new --disable-gpu --no-sandbox --hide-scrollbars --window-size=420,880 --virtual-time-budget=12000 --user-data-dir=C:/Users/rahul/AppData/Local/Temp/claude/c--Corptec-Personal-MySavingss/767b8f80-6711-47ee-a41e-85aef296722a/scratchpad/cprofile-light --screenshot=C:/Users/rahul/AppData/Local/Temp/claude/c--Corptec-Personal-MySavingss/767b8f80-6711-47ee-a41e-85aef296722a/scratchpad/home-light.png http://localhost:8931/seed-light.html)",
+      "Bash(timeout 540 npx expo export:web)",
+      "Bash('/c/Program Files/Google/Chrome/Application/chrome.exe' --headless=new --disable-gpu --no-sandbox --hide-scrollbars --window-size=900,700 --virtual-time-budget=12000 --user-data-dir=C:/Users/rahul/AppData/Local/Temp/claude/c--Corptec-Personal-MySavingss/767b8f80-6711-47ee-a41e-85aef296722a/scratchpad/cprof-w --screenshot=C:/Users/rahul/AppData/Local/Temp/claude/c--Corptec-Personal-MySavingss/767b8f80-6711-47ee-a41e-85aef296722a/scratchpad/home-wide.png http://localhost:8931/seed-light.html)",
+      "Bash('/c/Program Files/Google/Chrome/Application/chrome.exe' --headless=new --disable-gpu --no-sandbox --hide-scrollbars --window-size=400,790 --virtual-time-budget=14000 --user-data-dir=C:/Users/rahul/AppData/Local/Temp/claude/c--Corptec-Personal-MySavingss/767b8f80-6711-47ee-a41e-85aef296722a/scratchpad/h3 --screenshot=C:/Users/rahul/AppData/Local/Temp/claude/c--Corptec-Personal-MySavingss/767b8f80-6711-47ee-a41e-85aef296722a/scratchpad/home3-light.png http://localhost:8931/phone.html?t=light)",
+      "Bash(rm -f web-build/phone.html)",
+      "Bash(taskkill //F //IM python.exe)",
+      "Skill(dataviz)",
+      "Skill(dataviz:*)",
+      "Bash(node C:/Users/rahul/AppData/Local/Temp/claude/bundled-skills/2.1.204/406fc8aa166dd3ccf6a2ab794441574c/dataviz/scripts/validate_palette.js '#26619c,#b26a00' --mode light)",
+      "Bash(node C:/Users/rahul/AppData/Local/Temp/claude/bundled-skills/2.1.204/406fc8aa166dd3ccf6a2ab794441574c/dataviz/scripts/validate_palette.js '#5b9bd5' --mode dark)",
+      "Bash(head -251 src/screens/OverviewScreen.tsx)",
+      "Read(//tmp/**)",
+      "Bash('/c/Program Files/Google/Chrome/Application/chrome.exe' --headless=new --disable-gpu --no-sandbox --hide-scrollbars --window-size=400,830 --virtual-time-budget=30000 --user-data-dir=C:/Users/rahul/AppData/Local/Temp/claude/c--Corptec-Personal-MySavingss/767b8f80-6711-47ee-a41e-85aef296722a/scratchpad/p-fd --screenshot=C:/Users/rahul/AppData/Local/Temp/claude/c--Corptec-Personal-MySavingss/767b8f80-6711-47ee-a41e-85aef296722a/scratchpad/fdlist-light.png 'http://localhost:8931/phone.html?t=light&go=Deposits,Fixed%20Deposit')"
+    ]
+  }
+}

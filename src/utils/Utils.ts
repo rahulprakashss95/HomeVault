@@ -24,9 +24,9 @@ export const showToast = (
 };
 
 export const showConfirmationAlert = (title: string, subTitle: string) => {
-  return new Promise(async (resolve, reject) => {
+  return new Promise<boolean>((resolve) => {
     Platform.OS == "web"
-      ? resolve(confirm("Are you sure you want to delete?"))
+      ? resolve(confirm(subTitle))
       : Alert.alert(
           title,
           subTitle,

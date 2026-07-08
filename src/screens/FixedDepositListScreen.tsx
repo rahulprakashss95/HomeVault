@@ -1,80 +1,35 @@
-import React, { useEffect, useState } from "react";
-import { View, StyleSheet, FlatList } from "react-native";
-import { getFixedDeposit } from "../../database/firebaseQuery";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, StyleSheet, FlatList, RefreshControl } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../context/ThemeContext";
+import { ThemeColors } from "../utils/Color";
+import { getClients, getFixedDeposit } from "../../database/firebaseQuery";
 import { FixedDepositModel } from "../models/FixedDepositModel";
-import { NavigationProp } from "../utils/Utils";
-import Loader from "../components/Loader";
-import FDCard from "../components/FDCard";
 import { ClientModel } from "../models/ClientModel";
+import { amountFormat, NavigationProp, showToast } from "../utils/Utils";
+import {
+  mergeClientNames,
+  sortByMaturity,
+  visibleDeposits,
+} from "../utils/deposits";
+import { filterDepositsForUser, isAdmin } from "../utils/permissions";
+import { useAuth } from "../context/AuthContext";
+import { DepositListSkeleton } from "../components/Skeleton";
+import FDCard from "../components/FDCard";
 import FloatingButton from "../components/FAB";
-import moment from "moment";
-
-const CL = [
-  {
-    id: "3nHxEuNZinwy9w3DbzxY",
-    mobile: null,
-    name: "HDFC",
-    loginUserId: "V4yTbnAuEps1WpBRNeHb",
-  },
-  {
-    mobile: null,
-    name: "CUB",
-    loginUserId: "hvPqFbtNzE267IGQvLvf",
-    id: "DrOFa0co98GOQjTT8qRh",
-  },
-  {
-    mobile: null,
-    name: "Cinipriya",
-    id: "FDZL7myNAqUHCduJIVjP",
-    loginUserId: "hvPqFbtNzE267IGQvLvf",
-  },
-  {
-    mobile: [
-      { id: "527", pref: false, value: "+91 99949 47777", type: "mobile" },
-    ],
-    id: "QwVwQAAajPJ8vHbbSQbK",
-    loginUserId: "hvPqFbtNzE267IGQvLvf",
-    name: "Cheran Saravanan KBM",
-  },
-  {
-    loginUserId: "hvPqFbtNzE267IGQvLvf",
-    mobile: null,
-    name: "KVB Capital",
-    id: "UEiVaMkk2e5MqI7UTi0n",
-  },
-  {
-    id: "eOhYZkNsxPPTm7nWjiCd",
-    name: "Dhanaram",
-    mobile: null,
-    loginUserId: "hvPqFbtNzE267IGQvLvf",
-  },
-  {
-    id: "eXd7hUUGmuNfzQcuLyDY",
-    mobile: null,
-    name: "SIB",
-    loginUserId: "hvPqFbtNzE267IGQvLvf",
-  },
-  {
-    mobile: null,
-    loginUserId: "hvPqFbtNzE267IGQvLvf",
-    name: "DBS",
-    id: "tDWZk6pzW3inyw0rqdi5",
-  },
-  {
-    loginUserId: "hvPqFbtNzE267IGQvLvf",
-    id: "yxY1Rd7maTNOUfLRiIY9",
-    mobile: null,
-    name: "ICICI",
-  },
-];
 
 type Props = {
   navigation: NavigationProp;
 };
 
 const FixedDepositListScreen = ({ navigation }: Props) => {
-  const [fixedDeposits, setFixedDeposits] = useState<FixedDepositModel[]>();
-  const [isLoading, setIsLoading] = useState(false);
+  const [fixedDeposits, setFixedDeposits] = useState<FixedDepositModel[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const { colors } = useTheme();
+  const { user } = useAuth();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const showsAllUsers = isAdmin(user);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
@@ -82,60 +37,38 @@ const FixedDepositListScreen = ({ navigation }: Props) => {
     });
 
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, user]);
 
   const getFDData = () => {
-    setIsLoading(true);
-    getFixedDeposit()
-      .then((data: any) => {
-        let mergedData = mergeData(data, CL);
-        const sortedData = sortByMaturityDate(mergedData);
-        const updatedData = moveNonMaturityDataToEnd(sortedData);
-        setFixedDeposits(updatedData);
+    // Deposits only carry a clientId, so the bank names come from `clients`.
+    // Both are independent reads — fetch them together.
+    Promise.all([getFixedDeposit(), getClients()])
+      .then(([deposits, clients]: any[]) => {
+        const visible = visibleDeposits(deposits as FixedDepositModel[]);
+        // Non-admins only ever see deposits held in their own name.
+        const scoped = filterDepositsForUser(visible, user);
+        setFixedDeposits(
+          sortByMaturity(mergeClientNames(scoped, clients as ClientModel[]))
+        );
       })
       .catch((error) => {
         console.log(error);
+        showToast(
+          "error",
+          "Unable to load deposits",
+          "Check your connection and pull down to retry.",
+          "bottom"
+        );
       })
-      .finally(() => setIsLoading(false));
-  };
-
-  const mergeData = (getFixedDepositList: any, clientList: ClientModel[]) => {
-    for (let eachData of getFixedDepositList) {
-      let fdData: any = eachData;
-      let clientData: any = clientList?.filter(
-        (data: any) => data.id == eachData.clientId
-      );
-      if (clientData.length > 0) {
-        fdData["name"] = clientData[0].name;
-        fdData["mobile"] = clientData[0].mobile;
-      }
-    }
-    return getFixedDepositList;
-  };
-
-  const sortByMaturityDate = (listArray: any) => {
-    return listArray
-      .slice()
-      .sort((a: FixedDepositModel, b: FixedDepositModel) => {
-        a.maturityDate = a.maturityDate == "" ? 0 : a.maturityDate;
-        b.maturityDate = b.maturityDate == "" ? 0 : b.maturityDate;
-        const dateA = moment(b.maturityDate, "DD-MMM-YYYY");
-        const dateB = moment(a.maturityDate, "DD-MMM-YYYY");
-
-        if (!dateA.isValid()) return 1; // Move invalid dates to the end
-        if (!dateB.isValid()) return -1; // Move invalid dates to the end
-
-        return dateB.isBefore(dateA) ? -1 : 1;
+      .finally(() => {
+        setIsRefreshing(false);
+        setHasLoaded(true);
       });
   };
 
-  const moveNonMaturityDataToEnd = (listData = []) => {
-    let noMaturityData = listData.filter(
-      (data: FixedDepositModel, index) => data.maturityDate == ""
-    );
-    listData = listData.slice(noMaturityData.length, listData.length);
-    listData = listData.concat(noMaturityData);
-    return listData;
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    getFDData();
   };
 
   const navigateFDAddEdit = (data: any) => {
@@ -144,36 +77,133 @@ const FixedDepositListScreen = ({ navigation }: Props) => {
     });
   };
 
+  const totalAmount = useMemo(
+    () => fixedDeposits.reduce((sum, d) => sum + (Number(d.amount) || 0), 0),
+    [fixedDeposits]
+  );
+
+  const renderSummary = () => {
+    if (!fixedDeposits.length) {
+      return null;
+    }
+    return (
+      <View style={styles.summary}>
+        <Text style={styles.summaryLabel}>
+          {fixedDeposits.length}{" "}
+          {fixedDeposits.length === 1 ? "deposit" : "deposits"}
+          {showsAllUsers ? " · all users" : ""}
+        </Text>
+        <Text style={styles.summaryValue}>₹ {amountFormat(totalAmount)}</Text>
+      </View>
+    );
+  };
+
+  const renderEmpty = () => {
+    // Never show "nothing here" before the first fetch has actually resolved.
+    if (!hasLoaded) {
+      return null;
+    }
+    return (
+      <View style={styles.empty}>
+        <Ionicons name="file-tray-outline" size={44} color={colors.textMuted} />
+        <Text style={styles.emptyTitle}>No fixed deposits yet</Text>
+        <Text style={styles.emptyBody}>
+          Tap the + button to add your first deposit.
+        </Text>
+      </View>
+    );
+  };
+
+  // Only the very first fetch gets a skeleton. Re-fetching on focus keeps the
+  // list on screen rather than flashing placeholders over data we already have.
+  if (!hasLoaded) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.listContent}>
+          <DepositListSkeleton />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <Loader loading={isLoading} />
       <FlatList
-        contentContainerStyle={{ paddingBottom: 75 }}
+        contentContainerStyle={styles.listContent}
         data={fixedDeposits}
-        keyExtractor={(_) => Math.random().toString(36).substring(7)}
-        renderItem={(itemData: any) => {
-          return (
-            itemData?.item?.canShow && (
-              <View key={itemData.index + 1}>
-                <FDCard
-                  fixedDeposit={itemData.item}
-                  onClickCard={(data) => navigateFDAddEdit(data)}
-                />
-              </View>
-            )
-          );
-        }}
+        keyExtractor={(item, index) => item.id ?? String(index)}
+        ListHeaderComponent={renderSummary}
+        ListEmptyComponent={renderEmpty}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.textMuted}
+          />
+        }
+        renderItem={({ item }) => (
+          <FDCard fixedDeposit={item} onClickCard={navigateFDAddEdit} />
+        )}
       />
-      <FloatingButton onPress={() => navigateFDAddEdit(null)} />
+      <FloatingButton
+        accessibilityLabel="Add deposit"
+        onPress={() => navigateFDAddEdit(null)}
+      />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "white",
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    listContent: {
+      paddingTop: 16,
+      paddingBottom: 90,
+      flexGrow: 1,
+    },
+    summary: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      justifyContent: "space-between",
+      marginHorizontal: 16,
+      marginBottom: 14,
+    },
+    summaryLabel: {
+      fontSize: 13,
+      fontWeight: "600",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      color: colors.textMuted,
+    },
+    summaryValue: {
+      fontSize: 17,
+      fontWeight: "700",
+      color: colors.text,
+      fontVariant: ["tabular-nums"],
+    },
+    empty: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 40,
+      paddingBottom: 60,
+    },
+    emptyTitle: {
+      fontSize: 17,
+      fontWeight: "600",
+      color: colors.text,
+      marginTop: 14,
+    },
+    emptyBody: {
+      fontSize: 14,
+      color: colors.textMuted,
+      textAlign: "center",
+      marginTop: 6,
+      lineHeight: 20,
+    },
+  });
 
 export default FixedDepositListScreen;

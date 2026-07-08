@@ -1,123 +1,277 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, FlatList } from "react-native";
-import Card from "../components/Card";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../../App";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  RefreshControl,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { getClients } from "../../database/firebaseQuery";
-import Loader from "../components/Loader";
+import { ClientListSkeleton } from "../components/Skeleton";
 import { ClientModel } from "../models/ClientModel";
+import { useTheme } from "../context/ThemeContext";
+import { ThemeColors, tint } from "../utils/Color";
+import { showToast } from "../utils/Utils";
 
-type ClientScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-type Props = {
-  navigation: ClientScreenNavigationProp;
+/**
+ * `mobile` is not consistently shaped in Firestore: some docs hold an array of
+ * `{ value }` objects, some a bare string, some a keyed map, most `null`.
+ * Flatten whatever comes back into a plain list of numbers.
+ */
+const mobileNumbers = (mobile: any): string[] => {
+  if (!mobile) {
+    return [];
+  }
+  let entries: any[];
+  if (typeof mobile === "string") {
+    entries = [mobile];
+  } else if (Array.isArray(mobile)) {
+    entries = mobile;
+  } else {
+    entries = Object.values(mobile);
+  }
+  return entries
+    .map((entry: any) => (typeof entry === "string" ? entry : entry?.value))
+    .map((value: any) => (typeof value === "string" ? value.trim() : ""))
+    // Some records literally store the text "null" rather than an absent field.
+    .filter((value) => value && value !== "null" && value !== "undefined");
 };
 
-const ClientScreen = ({ navigation }: Props) => {
-  const [clientList, setClientList] = useState<ClientModel[]>();
-  const [isLoading, setIsLoading] = useState(false);
+/** "KVB Capital" -> "KC", "HDFC" -> "HD". */
+const initialsOf = (name: string) => {
+  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!words.length) {
+    return "?";
+  }
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return (words[0][0] + words[1][0]).toUpperCase();
+};
+
+const ClientScreen = () => {
+  const [clientList, setClientList] = useState<ClientModel[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
-    // setIsLoading(true);
-    // getClients()
-    //   .then((data: any) => {
-    //     console.log(JSON.stringify(data));
-    //     setClientList(data);
-    //   })
-    //   .catch((error) => {
-    //     console.log(error);
-    //   })
-    //   .finally(() => setIsLoading(false));
-    setClientList([
-      {
-        id: "3nHxEuNZinwy9w3DbzxY",
-        mobile: null,
-        name: "HDFC",
-        loginUserId: "V4yTbnAuEps1WpBRNeHb",
-      },
-      {
-        mobile: null,
-        name: "CUB",
-        loginUserId: "hvPqFbtNzE267IGQvLvf",
-        id: "DrOFa0co98GOQjTT8qRh",
-      },
-      {
-        mobile: null,
-        name: "Cinipriya",
-        id: "FDZL7myNAqUHCduJIVjP",
-        loginUserId: "hvPqFbtNzE267IGQvLvf",
-      },
-      {
-        mobile: [
-          { id: "527", pref: false, value: "+91 99949 47777", type: "mobile" },
-        ],
-        id: "QwVwQAAajPJ8vHbbSQbK",
-        loginUserId: "hvPqFbtNzE267IGQvLvf",
-        name: "Cheran Saravanan KBM",
-      },
-      {
-        loginUserId: "hvPqFbtNzE267IGQvLvf",
-        mobile: null,
-        name: "KVB Capital",
-        id: "UEiVaMkk2e5MqI7UTi0n",
-      },
-      {
-        id: "eOhYZkNsxPPTm7nWjiCd",
-        name: "Dhanaram",
-        mobile: null,
-        loginUserId: "hvPqFbtNzE267IGQvLvf",
-      },
-      {
-        id: "eXd7hUUGmuNfzQcuLyDY",
-        mobile: null,
-        name: "SIB",
-        loginUserId: "hvPqFbtNzE267IGQvLvf",
-      },
-      {
-        mobile: null,
-        loginUserId: "hvPqFbtNzE267IGQvLvf",
-        name: "DBS",
-        id: "tDWZk6pzW3inyw0rqdi5",
-      },
-      {
-        loginUserId: "hvPqFbtNzE267IGQvLvf",
-        id: "yxY1Rd7maTNOUfLRiIY9",
-        mobile: null,
-        name: "ICICI",
-      },
-    ]);
+    loadClients();
   }, []);
+
+  const loadClients = () => {
+    getClients()
+      .then((data: any) => {
+        const clients = (data as ClientModel[]) ?? [];
+        setClientList(
+          [...clients].sort((a, b) => a.name.localeCompare(b.name))
+        );
+      })
+      .catch((error) => {
+        console.log(error);
+        showToast(
+          "error",
+          "Unable to load clients",
+          "Check your connection and pull down to retry.",
+          "bottom"
+        );
+      })
+      .finally(() => {
+        setIsRefreshing(false);
+        setHasLoaded(true);
+      });
+  };
+
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    loadClients();
+  };
+
+  const renderHeader = () => {
+    if (!clientList.length) {
+      return null;
+    }
+    return (
+      <Text style={styles.summary}>
+        {clientList.length} {clientList.length === 1 ? "client" : "clients"}
+      </Text>
+    );
+  };
+
+  // Only reached once the first fetch has resolved — see the skeleton guard below.
+  const renderEmpty = () => {
+    return (
+      <View style={styles.empty}>
+        <Ionicons name="people-outline" size={44} color={colors.textMuted} />
+        <Text style={styles.emptyTitle}>No clients yet</Text>
+        <Text style={styles.emptyBody}>
+          Banks and depositors you add will appear here.
+        </Text>
+      </View>
+    );
+  };
+
+  const renderClient = ({ item }: { item: ClientModel }) => {
+    const numbers = mobileNumbers(item.mobile);
+
+    return (
+      <View style={styles.card}>
+        <View style={styles.row}>
+          <View
+            style={[styles.avatar, { backgroundColor: tint(colors.primary) }]}
+          >
+            <Text style={[styles.avatarText, { color: colors.primary }]}>
+              {initialsOf(item.name)}
+            </Text>
+          </View>
+
+          <View style={styles.details}>
+            <Text style={styles.name} numberOfLines={1}>
+              {item.name}
+            </Text>
+            {numbers.length ? (
+              numbers.map((number) => (
+                <View key={number} style={styles.mobileRow}>
+                  <Ionicons
+                    name="call-outline"
+                    size={13}
+                    color={colors.textMuted}
+                  />
+                  <Text style={styles.mobileText}>{number}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noMobile}>No contact number</Text>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  // Only the first fetch gets a skeleton; pull-to-refresh keeps the list on
+  // screen rather than flashing placeholders over data we already have.
+  if (!hasLoaded) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.listContent}>
+          <ClientListSkeleton />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <Loader loading={isLoading} />
       <FlatList
+        contentContainerStyle={styles.listContent}
         data={clientList}
-        keyExtractor={(_, index) => (index + 1).toString()}
-        renderItem={(itemData: any) => {
-          let client: ClientModel = itemData?.item;
-          return (
-            <View key={itemData.index + 1}>
-              <Card>
-                <Text>{client.name}</Text>
-                {client.mobile &&
-                  client.mobile.map((mobile, index) => {
-                    return <Text key={index + 1}>{mobile.value}</Text>;
-                  })}
-              </Card>
-            </View>
-          );
-        }}
+        keyExtractor={(item, index) => item.id ?? String(index)}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmpty}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.textMuted}
+          />
+        }
+        renderItem={renderClient}
       />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "white",
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    listContent: {
+      paddingTop: 16,
+      paddingBottom: 24,
+      flexGrow: 1,
+    },
+    summary: {
+      fontSize: 13,
+      fontWeight: "600",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      color: colors.textMuted,
+      marginHorizontal: 16,
+      marginBottom: 14,
+    },
+    card: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      padding: 16,
+      marginHorizontal: 16,
+      marginBottom: 12,
+    },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    avatar: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 14,
+    },
+    avatarText: {
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    details: {
+      flex: 1,
+    },
+    name: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    mobileRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 4,
+    },
+    mobileText: {
+      fontSize: 13,
+      color: colors.textMuted,
+      marginLeft: 6,
+    },
+    noMobile: {
+      fontSize: 13,
+      color: colors.textMuted,
+      marginTop: 4,
+    },
+    empty: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 40,
+      paddingBottom: 60,
+    },
+    emptyTitle: {
+      fontSize: 17,
+      fontWeight: "600",
+      color: colors.text,
+      marginTop: 14,
+    },
+    emptyBody: {
+      fontSize: 14,
+      color: colors.textMuted,
+      textAlign: "center",
+      marginTop: 6,
+      lineHeight: 20,
+    },
+  });
 
 export default ClientScreen;

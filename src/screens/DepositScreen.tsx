@@ -1,86 +1,102 @@
-import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import React, { useMemo } from "react";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { FontAwesome, AntDesign, Ionicons } from "@expo/vector-icons";
-import Card from "../components/Card";
-import { Colors } from "../utils/Color";
+import FeatureTile from "../components/FeatureTile";
+import { ThemeColors } from "../utils/Color";
 import { NavigationProp } from "../utils/Utils";
+import { useTheme } from "../context/ThemeContext";
 
 type Props = {
   navigation: NavigationProp;
 };
 
 const DepositScreen = ({ navigation }: Props) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
-    <View style={styles.container}>
-      <View style={styles.subContainer}>
-        <Pressable onPress={() => navigation.navigate("Clients")}>
-          <Card customStyle={styles.card}>
-            <AntDesign
-              name="file1"
-              size={32}
-              color={Colors.primary}
-              style={{ marginBottom: 8 }}
-            />
-            <Text style={styles.text}>Clients</Text>
-          </Card>
-        </Pressable>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* No page title here: the stack header already reads "Deposits". */}
+      <Text style={styles.lede}>
+        Manage your fixed deposits and the clients holding them.
+      </Text>
 
-        <Pressable onPress={() => navigation.navigate("FixedDepositList")}>
-          <Card customStyle={styles.card}>
-            <FontAwesome
-              name="credit-card"
-              size={32}
-              color={Colors.primary}
-              style={{ marginBottom: 8 }}
-            />
-            <Text style={styles.text}>Fixed Deposit</Text>
-          </Card>
-        </Pressable>
+      <Text style={styles.sectionTitle}>Records</Text>
 
-        <Pressable onPress={() => navigation.navigate("OverView")}>
-          <Card customStyle={styles.card}>
-            <Ionicons
-              name="laptop-outline"
-              size={32}
-              color={Colors.primary}
-              style={{ marginBottom: 8 }}
-            />
-            <Text style={styles.text}>Overview</Text>
-          </Card>
-        </Pressable>
+      <View style={styles.grid}>
+        <FeatureTile
+          title="Fixed Deposit"
+          subtitle="View, add & edit deposits"
+          accent={colors.accentBlue}
+          renderIcon={(color) => (
+            <FontAwesome name="credit-card" size={22} color={color} />
+          )}
+          onPress={() => navigation.navigate("FixedDepositList")}
+        />
+        <FeatureTile
+          title="Clients"
+          subtitle="Banks & depositors"
+          accent={colors.accentViolet}
+          renderIcon={(color) => (
+            <AntDesign name="file1" size={22} color={color} />
+          )}
+          onPress={() => navigation.navigate("Clients")}
+        />
       </View>
-    </View>
+
+      <Text style={[styles.sectionTitle, styles.sectionSpacing]}>Insights</Text>
+
+      <FeatureTile
+        wide
+        title="Overview"
+        subtitle="Totals & interest breakdown"
+        accent={colors.accentAmber}
+        renderIcon={(color) => (
+          <Ionicons name="pie-chart-outline" size={24} color={color} />
+        )}
+        onPress={() => navigation.navigate("OverView")}
+      />
+    </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "white",
-    padding: 16,
-  },
-  subContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 20,
-  },
-  card: {
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-    width: 150, // fixed width for each card
-    height: 150, // fixed height for each card
-  },
-  icon: {
-    width: 40, // Your icon size
-    height: 40, // Your icon size
-    marginBottom: 8,
-  },
-  text: {
-    fontSize: 16,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: 20,
+      paddingBottom: 32,
+    },
+    lede: {
+      fontSize: 16,
+      color: colors.textMuted,
+      lineHeight: 23,
+      marginTop: 4,
+      marginBottom: 28,
+    },
+    sectionTitle: {
+      fontSize: 13,
+      fontWeight: "600",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      color: colors.textMuted,
+      marginBottom: 12,
+    },
+    sectionSpacing: {
+      marginTop: 28,
+    },
+    grid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
+    },
+  });
 
 export default DepositScreen;
