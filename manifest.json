@@ -1,11 +1,12 @@
 {
-  "background_color": "#ffffff",
-  "display": "standalone",
-  "lang": "en",
   "name": "HomeVault",
   "short_name": "HomeVault",
   "start_url": "/HomeVault/?utm_source=web_app_manifest",
+  "scope": "/HomeVault/",
+  "display": "standalone",
   "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#26619c",
   "icons": [
     {
       "src": "/HomeVault/pwa/chrome-icon/chrome-icon-192.png",
@@ -19,7 +20,5 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ],
-  "scope": "/HomeVault/",
-  "theme_color": "#26619c"
+  ]
 }
