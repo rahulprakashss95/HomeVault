@@ -1,15 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text } from "react-native";
 import { useTheme } from "../context/ThemeContext";
-import { ThemeColors, tint } from "../utils/Color";
+import { ThemeColors } from "../utils/Color";
 import { QUOTES } from "../utils/quotes";
 import { currentOS } from "../utils/Utils";
 
 const ROTATE_MS = 12000;
 const FADE_MS = 450;
 
-/** A quote that cross-fades to the next one every ROTATE_MS; tap for another. */
+/**
+ * A quiet one-line-ish strip that cross-fades to the next quote every ROTATE_MS;
+ * tap for another. Deliberately chrome-less (no card/shadow) so it reads as a
+ * subtle touch rather than a content block competing with the feature tiles.
+ */
 const QuoteCard = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -70,14 +74,19 @@ const QuoteCard = () => {
       onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel={`Quote: ${quote.text} — ${quote.author}. Tap for another.`}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
-      <View style={styles.iconChip}>
-        <Ionicons name="sparkles-outline" size={16} color={colors.primary} />
-      </View>
-      <Animated.View style={{ opacity }}>
-        <Text style={styles.quote}>{quote.text}</Text>
-        <Text style={styles.author}>— {quote.author}</Text>
+      <Ionicons
+        name="sparkles-outline"
+        size={14}
+        color={colors.textMuted}
+        style={styles.icon}
+      />
+      <Animated.View style={[styles.textWrap, { opacity }]}>
+        <Text style={styles.text} numberOfLines={2}>
+          <Text style={styles.quote}>{quote.text}</Text>
+          <Text style={styles.author}>{`  — ${quote.author}`}</Text>
+        </Text>
       </Animated.View>
     </Pressable>
   );
@@ -85,40 +94,32 @@ const QuoteCard = () => {
 
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-    card: {
-      backgroundColor: colors.card,
-      borderRadius: 16,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      padding: 16,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.18,
-      shadowRadius: 8,
-      elevation: 2,
+    row: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      paddingVertical: 2,
     },
     pressed: {
-      opacity: 0.75,
+      opacity: 0.6,
     },
-    iconChip: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: tint(colors.primary),
-      marginBottom: 12,
+    icon: {
+      marginRight: 8,
+      marginTop: 2,
+    },
+    textWrap: {
+      flex: 1,
+    },
+    text: {
+      fontSize: 13,
+      lineHeight: 19,
     },
     quote: {
-      fontSize: 15,
-      lineHeight: 22,
       color: colors.text,
+      fontStyle: "italic",
     },
     author: {
-      fontSize: 13,
-      fontWeight: "600",
       color: colors.textMuted,
-      marginTop: 10,
+      fontWeight: "600",
     },
   });
 
