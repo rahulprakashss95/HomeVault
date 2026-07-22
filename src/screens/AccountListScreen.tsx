@@ -237,7 +237,7 @@ const createStyles = (colors: ThemeColors) =>
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.card,
-      borderRadius: 20,
+      borderRadius: 10,
       paddingVertical: 8,
       paddingHorizontal: 14,
       height: 36,

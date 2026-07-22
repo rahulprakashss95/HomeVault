@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../context/ThemeContext";
 import { ThemeColors, tint } from "../utils/Color";
 import EarningTypeListScreen from "./EarningTypeListScreen";
@@ -27,7 +27,12 @@ const LedgerSetupScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.segments}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.segmentScroll}
+        contentContainerStyle={styles.segments}
+      >
         {SEGMENTS.map((seg) => {
           const active = seg.key === segment;
           return (
@@ -47,7 +52,7 @@ const LedgerSetupScreen = () => {
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* Each list owns its own flex:1 container and FAB. */}
       <View style={styles.body}>
@@ -65,21 +70,27 @@ const createStyles = (colors: ThemeColors) =>
       flex: 1,
       backgroundColor: colors.background,
     },
+    // A horizontal ScrollView otherwise stretches to fill the column's height,
+    // pushing the body down — pin it to its content height.
+    segmentScroll: {
+      flexGrow: 0,
+      flexShrink: 0,
+    },
     segments: {
-      flexDirection: "row",
-      gap: 6,
       paddingHorizontal: 16,
-      paddingTop: 14,
+      paddingTop: 12,
       paddingBottom: 4,
+      gap: 8,
     },
     segment: {
-      flex: 1,
-      alignItems: "center",
-      paddingVertical: 9,
-      borderRadius: 10,
       borderWidth: 1,
       borderColor: colors.border,
-      backgroundColor: colors.inputBackground,
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      height: 36,
+      justifyContent: "center",
     },
     segmentActive: {
       borderColor: colors.primary,
