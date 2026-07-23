@@ -6,7 +6,7 @@ import { useTheme } from "../../../../src/context/ThemeContext";
 /** Keeps `index` under deep links from other tabs — see the Settings stack. */
 export const unstable_settings = { anchor: "index" };
 
-export default function DocumentsStack() {
+export default function RecordsStack() {
   const { colors } = useTheme();
   return (
     <Stack
@@ -19,10 +19,10 @@ export default function DocumentsStack() {
     >
       <Stack.Screen
         name="index"
-        options={{ title: "Documents", headerLeft: () => <MenuButton /> }}
+        options={{ title: "Records", headerLeft: () => <MenuButton /> }}
       />
       <Stack.Screen name="government/index" options={{ title: "Government" }} />
-      <Stack.Screen name="government/[id]" options={{ title: "Document" }} />
+      <Stack.Screen name="government/[id]" options={{ title: "Record" }} />
       <Stack.Screen
         name="bank-accounts/index"
         options={{ title: "Bank Accounts" }}

@@ -24,8 +24,8 @@ const BankDocumentListScreen = () => {
   const navigateAddEdit = (data: BankDocumentModel | null) => {
     router.push(
       data
-        ? `/documents/bank-accounts/${data.id}`
-        : "/documents/bank-accounts/new"
+        ? `/records/bank-accounts/${data.id}`
+        : "/records/bank-accounts/new"
     );
   };
 

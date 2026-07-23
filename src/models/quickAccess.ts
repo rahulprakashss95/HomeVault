@@ -45,11 +45,12 @@ export type QuickAccessItem = {
 export const QUICK_ACCESS_ITEMS: QuickAccessItem[] = [
   // ---- Modules: the coarse chips, and what a fresh install still shows -----
   {
+    // `id` is persisted in a member's chosen layout — the label moved, it can't.
     id: "documents",
-    label: "Documents",
+    label: "Records",
     icon: "document-text-outline",
     accent: "accentViolet",
-    href: "/documents",
+    href: "/records",
     gate: { kind: "module", module: "documents" },
     group: "Modules",
   },
@@ -81,24 +82,24 @@ export const QUICK_ACCESS_ITEMS: QuickAccessItem[] = [
     group: "Modules",
   },
 
-  // ---- Documents ----------------------------------------------------------
+  // ---- Records ------------------------------------------------------------
   {
     id: "add-government-id",
     label: "Add ID",
     icon: "id-card-outline",
     accent: "accentViolet",
-    href: "/documents/government/new",
+    href: "/records/government/new",
     gate: { kind: "feature", feature: "governmentDocuments" },
-    group: "Documents",
+    group: "Records",
   },
   {
     id: "add-bank-document",
     label: "Add bank",
     icon: "business-outline",
     accent: "accentViolet",
-    href: "/documents/bank-accounts/new",
+    href: "/records/bank-accounts/new",
     gate: { kind: "feature", feature: "bankDocuments" },
-    group: "Documents",
+    group: "Records",
   },
 
   // ---- Assets -------------------------------------------------------------

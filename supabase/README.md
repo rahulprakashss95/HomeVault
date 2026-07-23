@@ -20,6 +20,11 @@ Dashboard → SQL Editor → New query → paste all of `database/schema.sql` �
 It is safe to re-run: every statement is `if not exists` or `drop … if exists`
 first.
 
+**On an existing database, check `database/migrations/` first.** Because every
+statement is `if not exists`, `schema.sql` can create a table but never rename
+one — so anything that changed a table's *name* has a migration to run before
+it. Each is guarded and safe to re-run.
+
 ## 2. Configure Auth
 
 Dashboard → Authentication → Providers → **Email**:

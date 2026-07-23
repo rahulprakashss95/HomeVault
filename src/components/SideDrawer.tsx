@@ -68,12 +68,12 @@ const TREE: Node[] = [
     ],
   },
   {
-    label: "Documents",
+    label: "Records",
     icon: "document-text-outline",
     module: "documents",
     children: [
-      { label: "Government", icon: "shield-checkmark-outline", href: "/documents/government" },
-      { label: "Bank", icon: "business-outline", href: "/documents/bank-accounts" },
+      { label: "Government", icon: "shield-checkmark-outline", href: "/records/government" },
+      { label: "Bank", icon: "business-outline", href: "/records/bank-accounts" },
     ],
   },
   // Like Home, open to everyone — no module gating.
@@ -104,7 +104,7 @@ const SideDrawer = () => {
     pathname === href || pathname.startsWith(href + "/");
   // Groups start expanded so their children are reachable in one tap.
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    Documents: true,
+    Records: true,
     Assets: true,
     Ledger: true,
   });

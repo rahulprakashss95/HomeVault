@@ -24,7 +24,7 @@ const GovernmentDocumentListScreen = () => {
 
   const navigateAddEdit = (data: GovernmentDocumentModel | null) => {
     router.push(
-      data ? `/documents/government/${data.id}` : "/documents/government/new"
+      data ? `/records/government/${data.id}` : "/records/government/new"
     );
   };
 
@@ -37,7 +37,7 @@ const GovernmentDocumentListScreen = () => {
       addLabel="Add document"
       onAdd={() => navigateAddEdit(null)}
       emptyIcon="shield-checkmark-outline"
-      emptyTitle="No documents yet"
+      emptyTitle="No records yet"
       emptyBody="Tap the + button to save the family's first government ID."
       renderItem={(item, position) => (
         <GroupedRow

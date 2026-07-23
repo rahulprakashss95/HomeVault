@@ -31,7 +31,7 @@ const DocumentScreen = () => {
           renderIcon={(color) => (
             <Ionicons name="shield-checkmark-outline" size={24} color={color} />
           )}
-          onPress={() => router.push("/documents/government")}
+          onPress={() => router.push("/records/government")}
         />
         <FeatureTile
           title="Bank"
@@ -40,7 +40,7 @@ const DocumentScreen = () => {
           renderIcon={(color) => (
             <Ionicons name="business-outline" size={24} color={color} />
           )}
-          onPress={() => router.push("/documents/bank-accounts")}
+          onPress={() => router.push("/records/bank-accounts")}
         />
       </View>
     </ScrollView>

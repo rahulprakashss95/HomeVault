@@ -67,10 +67,13 @@ const REGISTRY: Record<
   ornaments: { fetch: getOrnaments, errorTitle: "Unable to load ornaments" },
   properties: { fetch: getProperties, errorTitle: "Unable to load properties" },
   vehicles: { fetch: getVehicles, errorTitle: "Unable to load vehicles" },
-  bankDocuments: { fetch: getBankDocuments, errorTitle: "Unable to load accounts" },
+  bankDocuments: {
+    fetch: getBankDocuments,
+    errorTitle: "Unable to load bank records",
+  },
   governmentDocuments: {
     fetch: getGovernmentDocuments,
-    errorTitle: "Unable to load documents",
+    errorTitle: "Unable to load government records",
   },
   ledgerClients: { fetch: getLedgerClients, errorTitle: "Unable to load clients" },
   earnings: { fetch: getEarnings, errorTitle: "Unable to load earnings" },

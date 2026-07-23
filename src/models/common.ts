@@ -23,8 +23,10 @@
  */
 export const MODULES = [
   {
+    // Key is "documents" for history, not description: it is persisted in every
+    // member's `moduleAccess` and is the legacy key below. The label moved on.
     key: "documents",
-    label: "Documents",
+    label: "Records",
     features: [
       { key: "governmentDocuments", label: "Government IDs" },
       { key: "bankDocuments", label: "Bank Accounts" },

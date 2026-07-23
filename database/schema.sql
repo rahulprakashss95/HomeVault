@@ -31,7 +31,7 @@
 -- visibility, and (on the four tables below) amounts, dates and lookup ids — as
 -- real typed columns. Everything else is payload in `data`.
 --
--- The eight small tables (banks, ornaments, properties, vehicles, documents,
+-- The eight small tables (banks, ornaments, properties, vehicles, records,
 -- ledger clients, expense types) are tens of rows, are never filtered or
 -- totalled in SQL, and hold nested structures — a property's payment entries are
 -- an array inside the record. They stay entirely in jsonb on purpose.
@@ -273,7 +273,7 @@ declare
   t text;
 begin
   foreach t in array array[
-    'banks', 'government_documents', 'bank_documents',
+    'banks', 'government_records', 'bank_records',
     'ornaments', 'properties', 'vehicles', 'ledger_clients',
     'earning_types', 'expense_types'
   ]
@@ -341,7 +341,7 @@ declare
   t text;
 begin
   foreach t in array array[
-    'banks', 'accounts', 'government_documents', 'bank_documents',
+    'banks', 'accounts', 'government_records', 'bank_records',
     'ornaments', 'properties', 'vehicles', 'ledger_clients', 'ledger_earnings',
     'ledger_savings', 'expenses', 'earning_types', 'expense_types', 'game_scores'
   ]
