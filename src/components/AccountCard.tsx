@@ -6,6 +6,8 @@ import { amountFormat } from "../utils/Utils";
 import {
   AccountModel,
   accountTypeLabel,
+  isLiability,
+  isLoanAccount,
   isMaturingAccount,
 } from "../models/AccountModel";
 import { useTheme } from "../context/ThemeContext";
@@ -21,7 +23,7 @@ import {
 
 type Props = {
   account: AccountModel;
-  /** Bank/institution label, resolved by the list via `accountInstitution`. */
+  /** Counterparty label — bank or person — resolved via `accountInstitution`. */
   institution: string;
   /** Owning member's name, resolved by the list from `account.ownerId`. */
   ownerName: string;
@@ -36,7 +38,10 @@ type Props = {
   ) => void;
 };
 
-type Status = { label: string; tone: "matured" | "active" | "none" };
+type Status = {
+  label: string;
+  tone: "matured" | "overdue" | "active" | "none";
+};
 
 const maturityStatus = (maturityDate: string): Status => {
   const maturity = parseMaturity(maturityDate);
@@ -47,6 +52,22 @@ const maturityStatus = (maturityDate: string): Status => {
     return { label: "Matured", tone: "matured" };
   }
   return { label: `Matures ${maturity.fromNow()}`, tone: "active" };
+};
+
+/**
+ * The same date read as a deadline rather than a payday: a deposit that has
+ * matured is good news, a loan past its date is not, so overdue gets its own
+ * tone instead of the amber `matured` shares.
+ */
+const dueStatus = (dueDate: string): Status => {
+  const due = parseMaturity(dueDate);
+  if (!due) {
+    return { label: "No due date", tone: "none" };
+  }
+  if (due.isBefore(moment(), "day")) {
+    return { label: `Overdue ${due.fromNow(true)}`, tone: "overdue" };
+  }
+  return { label: `Due ${due.fromNow()}`, tone: "active" };
 };
 
 const AccountCard = ({
@@ -65,6 +86,8 @@ const AccountCard = ({
   const isRD = account.accountType === "Recurring Deposit";
   const isDeposit = isMaturingAccount(account.accountType);
   const isCash = account.accountType === "Cash";
+  const isLoan = isLoanAccount(account.accountType);
+  const owes = isLiability(account.accountType);
 
   const payoutWord =
     account.interestFrequency === "Quarterly" ? "quarter" : "month";
@@ -80,15 +103,18 @@ const AccountCard = ({
 
   // The pill: FD shows its maturity countdown, RD shows paid progress, cash a
   // plain tag; an account balance needs none (its tab already says what it is).
-  const status = maturityStatus(account.maturityDate);
+  const status = isLoan
+    ? dueStatus(account.maturityDate)
+    : maturityStatus(account.maturityDate);
   const toneColors: Record<Status["tone"], string> = {
     active: colors.positive,
     matured: colors.accentAmber,
+    overdue: colors.negative,
     none: colors.textMuted,
   };
   let pillLabel = "";
   let pillTone = colors.accentBlue;
-  if (isFD) {
+  if (isFD || isLoan) {
     pillLabel = status.label;
     pillTone = toneColors[status.tone];
   } else if (isRD) {
@@ -100,21 +126,30 @@ const AccountCard = ({
   } else if (isCash) {
     pillLabel = accountTypeLabel("Cash");
   }
-  const showPill = isFD || isRD || isCash;
+  const showPill = isFD || isRD || isCash || isLoan;
 
   // The Name field only exists for cash now, so non-cash rows title from the
-  // institution (falling back to a legacy name, then the type).
+  // institution (falling back to a legacy name, then the type). For a loan the
+  // "institution" the list resolved is the counterparty, which is exactly the
+  // heading you want: the card is about who owes whom.
   const name = (account.name ?? "").trim();
   const inst = institution && institution !== "—" ? institution : "";
   const title = isCash
     ? name || accountTypeLabel("Cash")
     : inst || name || accountTypeLabel(account.accountType);
 
+  // A loan's direction isn't obvious from the counterparty's name alone.
+  let direction = "";
+  if (isLoan) {
+    direction = owes ? "You owe" : "Owed to you";
+  }
+
   // Don't repeat the institution in the subtitle when it's already the title.
   const subtitleParts = [
     isCash || title === inst ? "" : inst,
+    direction,
     ownerName,
-    isFD && account.interestPercentage
+    (isFD || isLoan) && account.interestPercentage
       ? `${account.interestPercentage}% p.a.`
       : "",
     isFD && account.interestFrequency ? account.interestFrequency : "",
@@ -146,7 +181,16 @@ const AccountCard = ({
         <Text style={styles.subtitle}>{subtitleParts.join(" · ")}</Text>
       )}
 
-      <Text style={styles.amount}>₹ {amountFormat(account.balance)}</Text>
+      <Text style={[styles.amount, owes && styles.amountOwed]}>
+        ₹ {amountFormat(account.balance)}
+      </Text>
+      {/* Nothing itemises a loan's repayments, so this date is the only record
+          of when the figure above was last true — it belongs next to it. */}
+      {isLoan && (
+        <Text style={styles.rdCaption}>
+          Outstanding as of {account.balanceAsOf || "—"}
+        </Text>
+      )}
       {isFD && Number(account.interest) > 0 && (
         <Text style={styles.interest}>
           + ₹ {amountFormat(account.interest)} interest
@@ -264,7 +308,22 @@ const AccountCard = ({
         </>
       )}
 
-      {!isDeposit && (
+      {isLoan && (
+        <View style={styles.dateRow}>
+          <View>
+            <Text style={styles.dateLabel}>{owes ? "Taken" : "Lent"}</Text>
+            <Text style={styles.dateValue}>{account.depositedDate || "—"}</Text>
+          </View>
+          <View style={styles.dateColumnEnd}>
+            <Text style={styles.dateLabel}>Due</Text>
+            <Text style={styles.dateValue}>
+              {parseMaturity(account.maturityDate)?.format(DATE_FORMAT) ?? "—"}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {!isDeposit && !isLoan && (
         <View style={styles.dateRow}>
           <Text style={styles.dateLabel}>Balance as of</Text>
           <Text style={styles.dateValue}>{account.balanceAsOf || "—"}</Text>
@@ -325,6 +384,10 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.text,
       marginTop: 12,
       fontVariant: ["tabular-nums"],
+    },
+    // Money owed, in the negative colour: a debt must never read as a holding.
+    amountOwed: {
+      color: colors.negative,
     },
     interest: {
       fontSize: 14,

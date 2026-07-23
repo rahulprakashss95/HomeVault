@@ -1,9 +1,10 @@
 import moment from "moment";
-import { BankModel } from "../models/BankModel";
+import { LedgerClientModel } from "../models/LedgerModel";
 import {
   AccountModel,
   ACCOUNT_SECTIONS,
   accountSection,
+  isLiability,
   isMaturingAccount,
 } from "../models/AccountModel";
 
@@ -23,18 +24,20 @@ export const parseMaturity = (maturityDate: string) => {
 };
 
 /**
- * Where an account sits, for display: its directory bank name when it has a
- * `bankId`, else the free-text `institution` (a financier, or a bank not in the
- * directory), else a dash. Resolving the bank name here rather than storing it
- * means renaming a bank updates every account at once, and a deleted bank reads
- * as its institution or "—" rather than a stale name.
+ * The other party to an account, for display: the directory name for its
+ * `contactId` — a bank for a balance, a person for a loan, one list either way —
+ * else the free-text `institution` carried by older rows, else a dash.
+ *
+ * Resolving the name here rather than storing it means renaming a contact
+ * updates every account at once, and a deleted one reads as its institution or
+ * "—" rather than a stale name.
  */
 export const accountInstitution = (
   account: AccountModel,
-  banks: BankModel[]
+  contacts: LedgerClientModel[]
 ): string => {
-  const bank = (banks ?? []).find((b) => b.id === account.bankId);
-  return bank?.name || account.institution || "—";
+  const contact = (contacts ?? []).find((c) => c.id === account.contactId);
+  return contact?.name || account.institution || "—";
 };
 
 /**
@@ -131,27 +134,47 @@ export const rdWithPayment = (
 export type LabelledTotal = { label: string; value: number };
 
 export type AccountTotals = {
-  /** Sum of every account balance — the net-worth cash/deposits figure. */
+  /**
+   * `assets - liabilities` — the net figure net worth counts. Named `balance`
+   * because that is what it was before borrowing existed and every consumer
+   * wants the net number; for the gross figure use `assets`.
+   */
   balance: number;
+  /** Everything held or owed *to* you: balances, deposits, cash, money lent. */
+  assets: number;
+  /** Money owed by you, as a positive magnitude. */
+  liabilities: number;
   /** Interest across the deposit-like accounts (Fixed/Recurring). */
   interest: number;
   accountCount: number;
+  /** Largest single asset balance; liabilities are not candidates. */
   largest: number;
-  /** Balance grouped by section (Balances/Deposits/Cash in Hand) for the overview. */
+  /**
+   * Balance grouped by section for the overview. Values stay positive in every
+   * section — a "Borrowed ₹50,000" row means you owe fifty thousand, and the
+   * section name is what says which way it points.
+   */
   balanceBySection: LabelledTotal[];
 };
 
 /** Roll a list of accounts up into the totals the Assets overview shows. */
 export const buildAccountTotals = (accounts: AccountModel[]): AccountTotals => {
   const bySection: Record<string, number> = {};
-  let balance = 0;
+  let assets = 0;
+  let liabilities = 0;
   let interest = 0;
   let largest = 0;
 
   for (const account of accounts) {
     const value = Number(account.balance) || 0;
-    balance += value;
-    largest = Math.max(largest, value);
+    // Balances are stored positive whichever way they point; the type decides
+    // which side of the sheet the number lands on.
+    if (isLiability(account.accountType)) {
+      liabilities += value;
+    } else {
+      assets += value;
+      largest = Math.max(largest, value);
+    }
     if (isMaturingAccount(account.accountType)) {
       interest += Number(account.interest) || 0;
     }
@@ -160,7 +183,9 @@ export const buildAccountTotals = (accounts: AccountModel[]): AccountTotals => {
   }
 
   return {
-    balance,
+    balance: assets - liabilities,
+    assets,
+    liabilities,
     interest,
     accountCount: accounts.length,
     largest,

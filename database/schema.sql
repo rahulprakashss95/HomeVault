@@ -31,8 +31,8 @@
 -- visibility, and (on the four tables below) amounts, dates and lookup ids — as
 -- real typed columns. Everything else is payload in `data`.
 --
--- The eight small tables (banks, ornaments, properties, vehicles, records,
--- ledger clients, expense types) are tens of rows, are never filtered or
+-- The seven small tables (ornaments, properties, vehicles, records, contacts,
+-- earning types, expense types) are tens of rows, are never filtered or
 -- totalled in SQL, and hold nested structures — a property's payment entries are
 -- an array inside the record. They stay entirely in jsonb on purpose.
 --
@@ -219,14 +219,19 @@ create table if not exists accounts (
   -- the current balance, the figure net worth sums
   balance             numeric not null,
   balance_as_of       date,
-  -- `banks` row id when it sits with a directory bank; else null
+  -- `ledger_clients` row id: the other party — the bank a balance sits with, or
+  -- the person a loan is with. Named `bank_id` because that is what it held
+  -- when it was created and renaming a column to restate a comment isn't worth
+  -- a migration; the app calls it `contactId`. Null for cash.
   bank_id             text,
-  -- deposit-only, null otherwise
+  -- deposit-only, null otherwise — except on the loan types, which reuse
+  -- deposited_on as "money changed hands", matures_on as "due back", and
+  -- interest_percentage as the agreed rate. See AccountModel.ts.
   deposited_on        date,
   matures_on          date,
   interest            numeric,
   interest_percentage numeric,
-  -- name, institution, principal
+  -- name, institution, principal, notes
   data                jsonb not null default '{}'::jsonb
 );
 create index if not exists accounts_family_id_idx on accounts (family_id);
@@ -273,7 +278,7 @@ declare
   t text;
 begin
   foreach t in array array[
-    'banks', 'government_records', 'bank_records',
+    'government_records', 'bank_records',
     'ornaments', 'properties', 'vehicles', 'ledger_clients',
     'earning_types', 'expense_types'
   ]
@@ -294,6 +299,81 @@ begin
     );
   end loop;
 end $$;
+
+-- ---------------------------------------------------------------- --
+-- One-time migration: fold `banks` into `ledger_clients`
+--
+-- There were two directories of "the other party to a record" — `banks` (the
+-- institutions a deposit or balance sits with) and `ledger_clients` (the people
+-- and firms that pay you). Picking a counterparty meant knowing which of the
+-- two a name lived in, which is exactly the wrong question to ask a user. They
+-- are now one list; see LedgerClientModel.
+--
+-- `ledger_clients` absorbs `banks` rather than the other way round because its
+-- shape is a superset (phone, email, address, description vs. a name and some
+-- numbers) and far more rows point at it. **Ids are preserved**, which is what
+-- makes this safe: `accounts.bank_id` keeps resolving without being rewritten,
+-- and the column keeps its name (see AccountModel.contactId).
+--
+-- Banks could hold several numbers; a contact holds one. The first becomes
+-- `phone` and any others are appended to `description`, so nothing is lost —
+-- just moved somewhere a bit untidy for the handful of rows that had two.
+--
+-- Guarded on the table still existing, so re-running the schema is a no-op, and
+-- `on conflict do nothing` so a second run can't double-insert.
+-- ---------------------------------------------------------------- --
+
+do $$
+begin
+  if to_regclass('public.banks') is not null then
+    insert into ledger_clients (id, family_id, owner_id, visibility, data)
+    select
+      b.id, b.family_id, b.owner_id, b.visibility,
+      jsonb_build_object(
+        'name', coalesce(b.data ->> 'name', ''),
+        'dialCode', '',
+        'phone', coalesce(nums.list[1], ''),
+        'email', '',
+        'address', '',
+        'description',
+          case
+            when array_length(nums.list, 1) > 1
+              then 'Other numbers: ' ||
+                   array_to_string(nums.list[2:array_length(nums.list, 1)], ', ')
+            else ''
+          end
+      )
+    from banks b
+    -- `mobile` has been stored as an array of objects, a bare string, or a
+    -- keyed map over the years (see `bankMobileNumbers` in the app, which this
+    -- mirrors). Arrays of objects and of bare strings are both handled; a
+    -- non-array `mobile` yields no number rather than a guess.
+    cross join lateral (
+      select coalesce(
+        array(
+          select trim(num)
+          from jsonb_array_elements(
+                 case jsonb_typeof(b.data -> 'mobile')
+                   when 'array' then b.data -> 'mobile'
+                   else '[]'::jsonb
+                 end
+               ) as entries(entry)
+          cross join lateral (
+            select case jsonb_typeof(entry)
+                     when 'string' then entry #>> '{}'
+                     else entry ->> 'value'
+                   end
+          ) as parsed(num)
+          where coalesce(trim(num), '') <> ''
+        ),
+        array[]::text[]
+      ) as list
+    ) nums
+    on conflict (id) do nothing;
+  end if;
+end $$;
+
+drop table if exists banks cascade;
 
 -- ---------------------------------------------------------------- --
 -- Game scores — the family leaderboard
@@ -341,7 +421,7 @@ declare
   t text;
 begin
   foreach t in array array[
-    'banks', 'accounts', 'government_records', 'bank_records',
+    'accounts', 'government_records', 'bank_records',
     'ornaments', 'properties', 'vehicles', 'ledger_clients', 'ledger_earnings',
     'ledger_savings', 'expenses', 'earning_types', 'expense_types', 'game_scores'
   ]

@@ -9,10 +9,14 @@ import {
   PropertyModel,
 } from "../models/AssetModel";
 import { FeatureKey, hasFeature } from "../models/common";
-import { AccountModel } from "../models/AccountModel";
-import { BankModel } from "../models/BankModel";
+import {
+  AccountModel,
+  isLiability,
+  isLoanAccount,
+} from "../models/AccountModel";
+
 import { ExpenseModel } from "../models/ExpenseModel";
-import { EarningModel, SavingModel } from "../models/LedgerModel";
+import { EarningModel, LedgerClientModel } from "../models/LedgerModel";
 import { useCollectionState, useMetalRates } from "../query/hooks";
 import { ornamentTotals, propertyPortfolio } from "../utils/assets";
 import {
@@ -29,7 +33,7 @@ import {
 
 /** A slice of the family's total worth, e.g. Deposits or Gold. */
 export type WorthSegment = {
-  key: "deposits" | "savings" | "gold" | "property";
+  key: "deposits" | "gold" | "property";
   label: string;
   value: number;
   /** Where tapping it lands. */
@@ -38,7 +42,14 @@ export type WorthSegment = {
 
 export type MaturityItem = {
   id: string;
+  /** Institution for a deposit, counterparty for a loan. */
   bankName: string;
+  /**
+   * Loans reuse `maturityDate` as their due date, so they surface here too —
+   * but a deposit maturing and a debt falling due are not the same news, and
+   * this is what lets the row say which one it is.
+   */
+  kind: "deposit" | "lent" | "borrowed";
   amount: number;
   date: string;
   /** Negative once matured. */
@@ -77,7 +88,7 @@ export type MonthFlow = {
 
 export type DashboardData = {
   ready: boolean;
-  /** null when the member has no worth-bearing module (deposits/ledger/assets). */
+  /** null when the member has no worth-bearing module (accounts/assets). */
   worth: {
     total: number;
     segments: WorthSegment[];
@@ -192,24 +203,20 @@ export const useDashboard = (): DashboardData => {
   const { user } = useAuth();
   const has = (feature: FeatureKey) => hasFeature(user, feature);
 
-  // The dashboard's four worth/attention buckets now map onto feature tiles:
-  // "deposits" is the Accounts tile, "assets" any of ornaments/properties,
-  // "ledger" the earnings/savings tiles, "expenses" its own tile.
+  // The dashboard's buckets map onto feature tiles: "deposits" is the Accounts
+  // tile, "assets" any of ornaments/properties, and the month card's two halves
+  // are the earnings and expenses tiles.
   const need = {
     deposits: has("accounts"),
-    ledger: has("earnings") || has("savings"),
     assets: has("ornaments") || has("properties"),
     expenses: has("expenses"),
-    // Separate from `ledger` (which also covers savings): the month card's
-    // earnings half needs the earnings tile specifically.
     earnings: has("earnings"),
   };
 
   // Served from the shared store — fetched once per session, not on every focus.
   const accounts = useCollectionState<AccountModel>("accounts");
-  // Feeds the FD maturity label ("FD at <bank>"); accounts store only a bankId.
-  const banks = useCollectionState<BankModel>("banks");
-  const savings = useCollectionState<SavingModel>("savings");
+  // Feeds the maturity/due label; accounts store only a contactId.
+  const contacts = useCollectionState<LedgerClientModel>("ledgerClients");
   const earnings = useCollectionState<EarningModel>("earnings");
   const expenses = useCollectionState<ExpenseModel>("expenses");
   const ornaments = useCollectionState<OrnamentModel>("ornaments");
@@ -218,18 +225,22 @@ export const useDashboard = (): DashboardData => {
 
   return useMemo(() => {
     const ready =
-      (!need.deposits || (accounts.hasLoaded && banks.hasLoaded)) &&
-      (!need.ledger || (savings.hasLoaded && earnings.hasLoaded)) &&
+      (!need.deposits || (accounts.hasLoaded && contacts.hasLoaded)) &&
+      (!need.earnings || earnings.hasLoaded) &&
       (!need.assets ||
         (ornaments.hasLoaded && properties.hasLoaded && rates.loaded)) &&
       (!need.expenses || expenses.hasLoaded);
 
     // ---- Worth -------------------------------------------------------------
+    // Only holdings count here: accounts, ornaments, property. Ledger savings
+    // are deliberately absent — a saving is a *flow* into an `accounts` row
+    // (see `SavingModel.accountId`), so the money it describes is already in
+    // `depositsValue`. Adding it back counted the same rupee twice. Ledger's
+    // own overview is where the flow belongs.
     const ratesValue = rates.value ?? EMPTY_METAL_RATES;
     const depositsValue = need.deposits
       ? buildAccountTotals(accounts.items).balance
       : 0;
-    const savingsValue = need.ledger ? sumAmount(savings.items) : 0;
     const orn = need.assets ? ornamentTotals(ornaments.items, ratesValue) : null;
     const portfolio = need.assets ? propertyPortfolio(properties.items) : null;
     const goldValue = orn?.totalValue ?? 0;
@@ -240,16 +251,9 @@ export const useDashboard = (): DashboardData => {
     if (need.deposits)
       segments.push({
         key: "deposits",
-        label: "Cash & Deposits",
+        label: "Cash, Deposits & Dues",
         value: depositsValue,
         href: "/assets/accounts",
-      });
-    if (need.ledger)
-      segments.push({
-        key: "savings",
-        label: "Savings",
-        value: savingsValue,
-        href: "/ledger/overview",
       });
     if (need.assets) {
       segments.push({
@@ -269,9 +273,9 @@ export const useDashboard = (): DashboardData => {
     const hasRates =
       !!ratesValue.goldPerGram || !!ratesValue.silverPerGram;
     const worth =
-      need.deposits || need.ledger || need.assets
+      need.deposits || need.assets
         ? {
-            total: depositsValue + savingsValue + goldValue + propertyEquity,
+            total: depositsValue + goldValue + propertyEquity,
             segments,
             unpricedGrams:
               need.assets && !hasRates ? orn?.totalGrams ?? 0 : 0,
@@ -294,13 +298,19 @@ export const useDashboard = (): DashboardData => {
             if (daysUntil > UPCOMING_DAYS) return null;
             // FDs are identified by their institution, not a name; resolve the
             // bank from the cache and fall back to any name/label we do have.
-            const institution = accountInstitution(account, banks.items);
+            // For a loan the same call yields the counterparty.
+            const institution = accountInstitution(account, contacts.items);
+            const loan = isLoanAccount(account.accountType);
+            let kind: MaturityItem["kind"] = "deposit";
+            if (loan) {
+              kind = isLiability(account.accountType) ? "borrowed" : "lent";
+            }
+            const unknown = loan ? "someone" : "your bank";
+            const named = institution !== "—" ? institution : account.name;
             return {
               id: account.id,
-              bankName:
-                institution !== "—"
-                  ? institution
-                  : account.name || "your bank",
+              bankName: named || unknown,
+              kind,
               amount: Number(account.balance) || 0,
               date: account.maturityDate,
               daysUntil,
@@ -354,16 +364,13 @@ export const useDashboard = (): DashboardData => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     need.deposits,
-    need.ledger,
     need.assets,
     need.expenses,
     need.earnings,
     accounts.items,
     accounts.hasLoaded,
-    banks.items,
-    banks.hasLoaded,
-    savings.items,
-    savings.hasLoaded,
+    contacts.items,
+    contacts.hasLoaded,
     earnings.items,
     earnings.hasLoaded,
     expenses.items,

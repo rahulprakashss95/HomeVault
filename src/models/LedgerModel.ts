@@ -7,8 +7,16 @@ import type { Creatable, Owned } from "./common";
 type UserOwned = Owned;
 
 /**
- * Deliberately not the existing `clients` collection: that one holds the banks
- * a fixed deposit sits with. These are the people and firms that pay you.
+ * The family's one contacts directory — every other party a record can point
+ * at. It began as "the people and firms that pay you" and there was a second
+ * `banks` table for the institutions a deposit sits with; those merged, because
+ * having to know which of two lists a name lived in was the confusing part.
+ * A bank, a financier and the cousin you lent to are now all rows here.
+ *
+ * The type, the table (`ledger_clients`) and the `clientId` fields pointing at
+ * it keep their names: they are stored data, and renaming them would cost a
+ * migration to say what this comment already says. Only the UI calls them
+ * contacts. Reached from Ledger → Contacts and from the Accounts header.
  */
 export type LedgerClientModel = UserOwned & {
   id: string;

@@ -6,7 +6,6 @@ import {
 } from "@tanstack/react-query";
 import {
   getBankDocuments,
-  getBanks,
   getEarnings,
   getAccounts,
   getEarningTypes,
@@ -31,7 +30,6 @@ import { MetalRates } from "../models/AssetModel";
  * single row, not a list, so it has its own query below.
  */
 export type CollectionName =
-  | "banks"
   | "accounts"
   | "ornaments"
   | "properties"
@@ -62,7 +60,6 @@ const REGISTRY: Record<
   CollectionName,
   { fetch: () => Promise<Identified[]>; errorTitle: string }
 > = {
-  banks: { fetch: getBanks, errorTitle: "Unable to load banks" },
   accounts: { fetch: getAccounts, errorTitle: "Unable to load accounts" },
   ornaments: { fetch: getOrnaments, errorTitle: "Unable to load ornaments" },
   properties: { fetch: getProperties, errorTitle: "Unable to load properties" },
@@ -75,7 +72,10 @@ const REGISTRY: Record<
     fetch: getGovernmentDocuments,
     errorTitle: "Unable to load government records",
   },
-  ledgerClients: { fetch: getLedgerClients, errorTitle: "Unable to load clients" },
+  ledgerClients: {
+    fetch: getLedgerClients,
+    errorTitle: "Unable to load contacts",
+  },
   earnings: { fetch: getEarnings, errorTitle: "Unable to load earnings" },
   earningTypes: {
     fetch: getEarningTypes,

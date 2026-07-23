@@ -65,7 +65,8 @@ const AssetOverviewScreen = () => {
   const rates = ratesState.value ?? EMPTY_METAL_RATES;
 
   // Deposits/balances count toward net worth only for members who hold the
-  // Accounts tile — the overview reflects the tiles you can see.
+  // Accounts tile — the overview reflects the tiles you can see. `balance` is
+  // net of anything borrowed, so the hero total is a genuine net figure.
   const showAccounts = hasFeature(user, "accounts");
   const accountTotals = useMemo(
     () => buildAccountTotals(accountState.items),
@@ -104,6 +105,9 @@ const AssetOverviewScreen = () => {
     ornamentSummary.totalValue +
     portfolio.total +
     (showAccounts ? accountTotals.balance : 0);
+  // Borrowing is the only thing here that subtracts, so the "net" framing is
+  // only worth showing once there is something to net off.
+  const showOwed = showAccounts && accountTotals.liabilities > 0;
   const hasRates = !!rates.goldPerGram || !!rates.silverPerGram;
 
   const handleSaveRates = (next: MetalRates) => {
@@ -191,15 +195,22 @@ const AssetOverviewScreen = () => {
         }
       >
       <View style={styles.heroCard}>
-        <Text style={styles.heroLabel}>Total asset value</Text>
+        <Text style={styles.heroLabel}>
+          {showOwed ? "Net asset value" : "Total asset value"}
+        </Text>
         <Text style={styles.heroValue}>{rupees(netValue)}</Text>
         <Text style={styles.heroCaption}>
           Ornaments {rupees(ornamentSummary.totalValue)} · Properties{" "}
           {rupees(portfolio.total)} at cost
           {showAccounts
-            ? ` · Cash & Deposits ${rupees(accountTotals.balance)}`
+            ? ` · Cash, Deposits & Dues ${rupees(accountTotals.balance)}`
             : ""}
         </Text>
+        {showOwed && (
+          <Text style={styles.heroWarning}>
+            {rupees(accountTotals.liabilities)} borrowed is already subtracted.
+          </Text>
+        )}
         {ornamentSummary.hasUnvalued && (
           <Text style={styles.heroWarning}>
             Diamond and platinum aren't priced, so the total is a floor.
@@ -319,32 +330,68 @@ const AssetOverviewScreen = () => {
 
       {showAccounts && (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Cash & Deposits</Text>
+          <Text style={styles.sectionTitle}>Cash, Deposits & Dues</Text>
           {accountTotals.accountCount === 0 ? (
             <Text style={styles.emptyText}>No accounts recorded yet.</Text>
           ) : (
             <>
               <View style={styles.statRow}>
                 <View style={styles.stat}>
-                  <Text style={styles.statLabel}>Total balance</Text>
+                  {/* Once anything is borrowed, "total balance" would be two
+                      different numbers depending on who's asking. Split it. */}
+                  <Text style={styles.statLabel}>
+                    {showOwed ? "Held & owed to you" : "Total balance"}
+                  </Text>
                   <Text style={styles.statValue}>
-                    {rupees(accountTotals.balance)}
+                    {rupees(showOwed ? accountTotals.assets : accountTotals.balance)}
                   </Text>
                 </View>
                 <View style={styles.stat}>
-                  <Text style={styles.statLabel}>Deposit interest</Text>
-                  <Text style={styles.statValue}>
-                    {rupees(accountTotals.interest)}
+                  <Text style={styles.statLabel}>
+                    {showOwed ? "You owe" : "Deposit interest"}
+                  </Text>
+                  <Text
+                    style={[styles.statValue, showOwed && styles.liability]}
+                  >
+                    {rupees(
+                      showOwed ? accountTotals.liabilities : accountTotals.interest
+                    )}
                   </Text>
                 </View>
               </View>
 
+              {showOwed && (
+                <View style={[styles.statRow, styles.statRowSpacing]}>
+                  <View style={styles.stat}>
+                    <Text style={styles.statLabel}>Net</Text>
+                    <Text style={styles.statValue}>
+                      {rupees(accountTotals.balance)}
+                    </Text>
+                  </View>
+                  <View style={styles.stat}>
+                    <Text style={styles.statLabel}>Deposit interest</Text>
+                    <Text style={styles.statValue}>
+                      {rupees(accountTotals.interest)}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Section values are all positive magnitudes — "Loans" is what
+                  you owe, so only its colour says which way it points. */}
               {accountTotals.balanceBySection.map((row) => (
                 <View key={row.label} style={styles.holderRow}>
                   <Text style={styles.holderName} numberOfLines={1}>
                     {row.label}
                   </Text>
-                  <Text style={styles.holderValue}>{rupees(row.value)}</Text>
+                  <Text
+                    style={[
+                      styles.holderValue,
+                      row.label === "Loans" && styles.liability,
+                    ]}
+                  >
+                    {rupees(row.value)}
+                  </Text>
                 </View>
               ))}
             </>
@@ -537,6 +584,13 @@ const createStyles = (colors: ThemeColors) =>
     statRow: {
       flexDirection: "row",
       justifyContent: "space-between",
+    },
+    statRowSpacing: {
+      marginTop: 14,
+    },
+    // Money owed, wherever it appears — never the same colour as money held.
+    liability: {
+      color: colors.negative,
     },
     stat: {
       flex: 1,

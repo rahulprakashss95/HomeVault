@@ -17,7 +17,7 @@ function AccountsHeaderRight() {
       <Pressable
         onPress={() => router.push("/assets/accounts/institutions")}
         accessibilityRole="button"
-        accessibilityLabel="Institutions"
+        accessibilityLabel="Contacts"
         hitSlop={8}
         style={{ padding: 6 }}
       >
@@ -62,7 +62,9 @@ export default function AssetsStack() {
       <Stack.Screen
         name="accounts/index"
         options={{
-          title: "Cash & Deposits",
+          // Shorter than the tile's "Cash, Deposits & Dues": a nav bar with a
+          // back button and an action on the right has no room for the full name.
+          title: "Cash & Dues",
           headerRight: () => <AccountsHeaderRight />,
         }}
       />
@@ -70,11 +72,11 @@ export default function AssetsStack() {
       <Stack.Screen name="accounts/[id]" />
       <Stack.Screen
         name="accounts/institutions/index"
-        options={{ title: "Institutions" }}
+        options={{ title: "Contacts" }}
       />
       <Stack.Screen
         name="accounts/institutions/[id]"
-        options={{ title: "Institution" }}
+        options={{ title: "Contact" }}
       />
       <Stack.Screen name="overview" options={{ title: "Overview" }} />
     </Stack>

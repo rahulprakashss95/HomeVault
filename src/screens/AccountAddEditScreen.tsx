@@ -17,13 +17,14 @@ import {
   accountTypeLabel,
   INTEREST_FREQUENCIES,
   InterestFrequency,
+  isLoanAccount,
   isMaturingAccount,
   normalizeAccountType,
 } from "../models/AccountModel";
-import { BankModel } from "../models/BankModel";
+import { LedgerClientModel } from "../models/LedgerModel";
 import { rdMonthCount } from "../utils/deposits";
 import SearchableSelect from "../components/SearchableSelect";
-import BankForm from "../components/forms/BankForm";
+import LedgerClientForm from "../components/forms/LedgerClientForm";
 import { isValidAmount } from "../utils/amount";
 import { ThemeColors, tint } from "../utils/Color";
 import { useTheme } from "../context/ThemeContext";
@@ -41,6 +42,12 @@ import {
   useCollectionState,
 } from "../query/hooks";
 import { canEdit, Visibility } from "../models/common";
+
+/** The type dropdown's options, in ACCOUNT_TYPES order (not alphabetical). */
+const TYPE_OPTIONS = ACCOUNT_TYPES.map((type: AccountType) => ({
+  id: type,
+  name: accountTypeLabel(type),
+}));
 
 type Props = {
   /** Resolved by the [id] route from the cache; null = create. */
@@ -61,8 +68,8 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
   );
   const [accountType, setAccountType] = useState<string>(initialType);
   const [name, setName] = useState(account?.name ?? "");
-  const [bankId, setBankId] = useState(account?.bankId ?? "");
-  const [bankName, setBankName] = useState("");
+  const [contactId, setContactId] = useState(account?.contactId ?? "");
+  const [contactName, setContactName] = useState("");
   // Kept read-only: legacy rows may carry free-text institution; we preserve it
   // on save but no longer offer an input, since institutions come from the picker.
   const [institution] = useState(account?.institution ?? "");
@@ -84,6 +91,7 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
   // Recurring Deposit fields.
   const [startDate, setStartDate] = useState(account?.startDate ?? "");
   const [months, setMonths] = useState(account?.months ?? "");
+  const [notes, setNotes] = useState(account?.notes ?? "");
   const [visibility, setVisibility] = useState<Visibility>(
     account?.visibility ?? "private"
   );
@@ -98,6 +106,19 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
   const isFD = accountType === "Fixed Deposit";
   const isRD = accountType === "Recurring Deposit";
   const isCash = accountType === "Cash";
+  const isLoan = isLoanAccount(accountType);
+  const isBorrowed = accountType === "Borrowed";
+  // "You lent this out" vs "you took this on" — the same three fields, read from
+  // opposite ends, so the labels flip rather than the form branching again.
+  const loanDateLabel = isBorrowed ? "Taken on" : "Lent on";
+  const loanAmountLabel = isBorrowed ? "Still owed" : "Still outstanding";
+
+  // One picker, three readings of the same relationship. A loan's other party is
+  // its lender, bank or person alike.
+  let counterpartyLabel = "Institution";
+  if (isBorrowed) counterpartyLabel = "Lender";
+  else if (isLoan) counterpartyLabel = "Lent to";
+
   // FD paid at maturity carries no periodic interest — it has a maturity amount.
   const isOnMaturity = isFD && interestFrequency === "On Maturity";
   const periodWord = interestFrequency === "Quarterly" ? "quarter" : "month";
@@ -108,20 +129,23 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
   // Public accounts are viewable family-wide but editable only by their owner.
   const readOnly = pageMode === "Edit" && !canEdit(account, user?.id);
 
-  const bankState = useCollectionState<BankModel>("banks");
-  const banks = useMemo(
-    () => [...bankState.items].sort((a, b) => a.name.localeCompare(b.name)),
-    [bankState.items]
+  // The single directory — banks, financiers and the people you lend to all
+  // live here (see LedgerClientModel). The picker can add one inline, so a
+  // member without the Ledger tile can still use it.
+  const contactState = useCollectionState<LedgerClientModel>("ledgerClients");
+  const contacts = useMemo(
+    () => [...contactState.items].sort((a, b) => a.name.localeCompare(b.name)),
+    [contactState.items]
   );
 
-  // Accounts store only `bankId`, so on edit the picker's display name is
-  // resolved from the banks cache once it has loaded.
+  // Accounts store only `contactId`, so on edit the picker's display name is
+  // resolved from the contacts cache once it has loaded.
   useEffect(() => {
-    if (bankId && !bankName) {
-      const bank = bankState.items.find((b) => b.id === bankId);
-      if (bank) setBankName(bank.name);
+    if (contactId && !contactName) {
+      const contact = contactState.items.find((c) => c.id === contactId);
+      if (contact) setContactName(contact.name);
     }
-  }, [bankId, bankName, bankState.items]);
+  }, [contactId, contactName, contactState.items]);
 
   // Periods per year for the payout frequency; "On Maturity" pays nothing along
   // the way. RD (no frequency field) is treated as a monthly payout.
@@ -146,11 +170,12 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
 
   /** Returns an error message, or null when the form is good to submit. */
   const validationError = () => {
-    // Cash is identified by its name; everything else by its institution.
+    // Cash is identified by its name; everything else by its counterparty.
     if (isCash) {
       if (!name.trim()) return "Give this cash entry a name.";
-    } else if (!bankId) {
-      return "Select an institution.";
+    } else if (!contactId) {
+      if (isBorrowed) return "Select the lender.";
+      return isLoan ? "Select who you lent to." : "Select an institution.";
     }
     if (isRD) {
       if (!isValidAmount(principal)) return "Enter the monthly instalment.";
@@ -161,6 +186,12 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
       if (!interestPercentage) return "Enter an interest rate.";
       if (isOnMaturity && !isValidAmount(maturityAmount)) {
         return "Enter the maturity amount.";
+      }
+    } else if (isLoan) {
+      if (!isValidAmount(balance)) {
+        return isBorrowed
+          ? "Enter the amount you still owe."
+          : "Enter the amount still outstanding.";
       }
     } else if (!isValidAmount(balance)) {
       return "Enter a balance.";
@@ -197,24 +228,28 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
     const payload = {
       accountType,
       name: name.trim(),
-      bankId: isCash ? "" : bankId,
+      contactId: isCash ? "" : contactId,
       // Free-text institution is no longer entered here; preserved as-is for
       // legacy rows so their display label isn't wiped on save.
-      institution: isCash ? "" : institution.trim(),
+      institution: isCash || isLoan ? "" : institution.trim(),
       balance: savedBalance,
       balanceAsOf: isDeposit ? "" : balanceAsOf,
       // Deposit-only; left as-is (usually blank) for other types.
       principal: isDeposit ? principal : "",
       interest: isFD && !isOnMaturity ? interestAmount : "",
-      interestPercentage: isFD ? interestPercentage : "",
+      // Shared with loans, which carry a rate but none of the payout machinery.
+      interestPercentage: isFD || isLoan ? interestPercentage : "",
       interestFrequency: isFD ? interestFrequency : "",
       maturityAmount: isOnMaturity ? maturityAmount : "",
-      depositedDate: isFD ? depositedDate : "",
-      maturityDate: isFD ? maturityDate : "",
+      // A loan reuses these two: when the money changed hands, and when it's due.
+      depositedDate: isFD || isLoan ? depositedDate : "",
+      maturityDate: isFD || isLoan ? maturityDate : "",
       // Recurring-deposit-only.
       startDate: isRD ? startDate : "",
       months: isRD ? months : "",
       payments: isRD ? rdPayments : [],
+      // Applies to every type, so it is never cleared by the branches above.
+      notes: notes.trim(),
       visibility,
     };
 
@@ -252,7 +287,7 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <Loader loading={isLoading || !bankState.hasLoaded} />
+      <Loader loading={isLoading || !contactState.hasLoaded} />
 
       <ReadOnlyBanner show={readOnly} />
 
@@ -264,27 +299,16 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Holding</Text>
 
-          <Text style={styles.label}>Type</Text>
-          <View style={styles.chipRow}>
-            {ACCOUNT_TYPES.map((type: AccountType) => {
-              const active = type === accountType;
-              return (
-                <Pressable
-                  key={type}
-                  onPress={() => setAccountType(type)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: active }}
-                  style={[styles.chip, active && styles.chipActive]}
-                >
-                  <Text
-                    style={[styles.chipText, active && styles.chipTextActive]}
-                  >
-                    {accountTypeLabel(type)}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          {/* Six types is past what a chip row can hold without pushing the
+              rest of the form off the screen. */}
+          <SearchableSelect
+            label="Type"
+            searchable={false}
+            selectedId={accountType}
+            selectedName={accountTypeLabel(accountType)}
+            options={TYPE_OPTIONS}
+            onSelect={(id) => setAccountType(id)}
+          />
 
           {isCash && (
             <>
@@ -299,20 +323,23 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
             </>
           )}
 
+          {/* One directory for every type. A bank, a financier and the cousin
+              you lent to are all just the other party to the record, and asking
+              which of two lists to look in was the confusing part. */}
           {!isCash && (
             <SearchableSelect
-              label="Institution"
-              placeholder="Select a bank or financier"
-              selectedId={bankId}
-              selectedName={bankName}
-              options={banks}
+              label={counterpartyLabel}
+              placeholder="Select a person, bank or firm"
+              selectedId={contactId}
+              selectedName={contactName}
+              options={contacts}
               onSelect={(id, selectedName) => {
-                setBankId(id);
-                setBankName(selectedName);
+                setContactId(id);
+                setContactName(selectedName);
               }}
-              addLabel="Add institution"
+              addLabel="Add contact"
               renderAddForm={({ onCreated }) => (
-                <BankForm
+                <LedgerClientForm
                   onSaved={(saved) =>
                     onCreated({ id: saved.id, name: saved.name })
                   }
@@ -324,8 +351,12 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
 
         {!isDeposit && (
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Balance</Text>
-            <Text style={styles.label}>Current balance</Text>
+            <Text style={styles.sectionTitle}>
+              {isLoan ? "Outstanding" : "Balance"}
+            </Text>
+            <Text style={styles.label}>
+              {isLoan ? loanAmountLabel : "Current balance"}
+            </Text>
             <View style={styles.affixRow}>
               <Text style={styles.affix}>₹</Text>
               <TextInput
@@ -338,10 +369,17 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
               />
             </View>
             <DatePicker
-              label="Balance as of"
+              label={isLoan ? "Correct as of" : "Balance as of"}
               dateValue={balanceAsOf}
               onDateChange={(date: string) => setBalanceAsOf(date || balanceAsOf)}
             />
+            {isLoan && (
+              <Text style={styles.hint}>
+                Repayments aren't itemised — lower this figure as it's paid back.
+                The date is the only record of when it was last true, so keep it
+                current.
+              </Text>
+            )}
           </View>
         )}
 
@@ -514,6 +552,55 @@ const AccountAddEditScreen = ({ initial, presetType }: Props) => {
             </Text>
           </View>
         )}
+
+        {isLoan && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Terms</Text>
+
+            <Text style={styles.label}>Rate</Text>
+            <View style={styles.affixRow}>
+              <TextInput
+                style={styles.affixInput}
+                onChangeText={setInterestPercentage}
+                value={interestPercentage}
+                placeholder="0.0"
+                placeholderTextColor={colors.placeholder}
+                keyboardType="decimal-pad"
+              />
+              <Text style={styles.affix}>% p.a.</Text>
+            </View>
+            <Text style={styles.hint}>
+              Leave blank for an interest-free loan.
+            </Text>
+
+            <DatePicker
+              label={loanDateLabel}
+              dateValue={depositedDate}
+              onDateChange={(date: string) =>
+                setDepositedDate(date || depositedDate)
+              }
+            />
+            <DatePicker
+              label="Due date"
+              dateValue={maturityDate}
+              onDateChange={(date: string) => setMaturityDate(date || maturityDate)}
+            />
+          </View>
+        )}
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Notes</Text>
+          <TextInput
+            style={[styles.input, styles.multiline]}
+            onChangeText={setNotes}
+            value={notes}
+            placeholder="Account number, where the passbook is kept, what it's for…"
+            placeholderTextColor={colors.placeholder}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+          />
+        </View>
       </ReadOnlyGuard>
 
       {!readOnly && (
@@ -579,6 +666,10 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 16,
       color: colors.text,
       marginBottom: 18,
+    },
+    multiline: {
+      minHeight: 96,
+      marginBottom: 0,
     },
     chipRow: {
       flexDirection: "row",

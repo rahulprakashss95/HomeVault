@@ -21,11 +21,13 @@ import {
   AccountModel,
   AccountType,
   accountTypeLabel,
+  isLiability,
+  isLoanAccount,
   isMaturingAccount,
   normalizeAccountType,
 } from "../models/AccountModel";
 import { canEdit } from "../models/common";
-import { BankModel } from "../models/BankModel";
+import { LedgerClientModel } from "../models/LedgerModel";
 import { amountFormat, showToast } from "../utils/Utils";
 import {
   accountInstitution,
@@ -46,6 +48,8 @@ const TABS: { type: AccountType; label: string }[] = [
   "Cash",
   "Fixed Deposit",
   "Recurring Deposit",
+  "Lent",
+  "Borrowed",
 ].map((type) => ({
   type: type as AccountType,
   label: accountTypeLabel(type),
@@ -60,26 +64,26 @@ const AccountListScreen = () => {
 
   const [activeType, setActiveType] = useState<AccountType>("Account Balance");
 
-  // Both served from the store — fetched once, not on every focus. Banks feed
-  // the institution label; accounts already carry their own name and balance.
+  // Both served from the store — fetched once, not on every focus. Contacts
+  // resolve the counterparty label; accounts carry their own name and balance.
   const accounts = useCollectionState<AccountModel>("accounts");
-  const banks = useCollectionState<BankModel>("banks");
+  const contacts = useCollectionState<LedgerClientModel>("ledgerClients");
   const nameOf = useOwnerName();
 
-  const hasLoaded = accounts.hasLoaded && banks.hasLoaded;
-  const isRefreshing = accounts.isRefreshing || banks.isRefreshing;
+  const hasLoaded = accounts.hasLoaded && contacts.hasLoaded;
+  const isRefreshing = accounts.isRefreshing || contacts.isRefreshing;
   const onRefresh = () => {
     accounts.onRefresh();
-    banks.onRefresh();
+    contacts.onRefresh();
   };
 
-  // The active tab's accounts: deposits sort by soonest maturity, the rest by
-  // largest balance.
+  // The active tab's accounts: deposits sort by soonest maturity and loans by
+  // soonest due date (both live in `maturityDate`), the rest by largest balance.
   const visible = useMemo(() => {
     const matches = accounts.items.filter(
       (a) => normalizeAccountType(a.accountType) === activeType
     );
-    return isMaturingAccount(activeType)
+    return isMaturingAccount(activeType) || isLoanAccount(activeType)
       ? sortByMaturity(matches)
       : [...matches].sort(
           (a, b) => (Number(b.balance) || 0) - (Number(a.balance) || 0)
@@ -141,6 +145,14 @@ const AccountListScreen = () => {
     </ScrollView>
   );
 
+  // A tab holds exactly one type, so the subtotal never mixes directions — it
+  // just needs saying which way this one points.
+  const owes = isLiability(activeType);
+  let directionNote = "";
+  if (isLoanAccount(activeType)) {
+    directionNote = owes ? "you owe" : "owed to you";
+  }
+
   const renderSummary = () => {
     if (!visible.length) {
       return null;
@@ -149,8 +161,11 @@ const AccountListScreen = () => {
       <View style={styles.summary}>
         <Text style={styles.summaryLabel}>
           {visible.length} {visible.length === 1 ? "entry" : "entries"}
+          {directionNote ? ` · ${directionNote}` : ""}
         </Text>
-        <Text style={styles.summaryValue}>₹ {amountFormat(subtotal)}</Text>
+        <Text style={[styles.summaryValue, owes && styles.summaryOwed]}>
+          ₹ {amountFormat(subtotal)}
+        </Text>
       </View>
     );
   };
@@ -161,10 +176,15 @@ const AccountListScreen = () => {
     if (!hasLoaded) {
       return null;
     }
+    // "No lent out yet" doesn't parse — the loan labels are past participles,
+    // so they take "Nothing" rather than "No <thing>".
+    const title = isLoanAccount(activeType)
+      ? `Nothing ${activeLabel.toLowerCase()} yet`
+      : `No ${activeLabel.toLowerCase()} yet`;
     return (
       <View style={styles.empty}>
         <Ionicons name="wallet-outline" size={44} color={colors.textMuted} />
-        <Text style={styles.emptyTitle}>No {activeLabel.toLowerCase()} yet</Text>
+        <Text style={styles.emptyTitle}>{title}</Text>
         <Text style={styles.emptyBody}>
           Tap the + button to add {activeType === "Cash" ? "cash" : "one"}.
         </Text>
@@ -203,7 +223,7 @@ const AccountListScreen = () => {
         renderItem={({ item }) => (
           <AccountCard
             account={item}
-            institution={accountInstitution(item, banks.items)}
+            institution={accountInstitution(item, contacts.items)}
             ownerName={nameOf(item.ownerId)}
             onClickCard={navigateAddEdit}
             editable={canEdit(item, user?.id)}
@@ -293,6 +313,11 @@ const createStyles = (colors: ThemeColors) =>
       fontWeight: "700",
       color: colors.text,
       fontVariant: ["tabular-nums"],
+    },
+    // Money owed reads in the negative colour so a debt total can't be mistaken
+    // for one more pile of money at a glance.
+    summaryOwed: {
+      color: colors.negative,
     },
     empty: {
       flex: 1,

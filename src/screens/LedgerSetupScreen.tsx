@@ -7,7 +7,7 @@ import LedgerClientListScreen from "./LedgerClientListScreen";
 import ExpenseTypeListScreen from "./ExpenseTypeListScreen";
 
 const SEGMENTS = [
-  { key: "clients", label: "Clients" },
+  { key: "clients", label: "Contacts" },
   { key: "expenseTypes", label: "Expense Types" },
   { key: "earningTypes", label: "Earning Types" },
 ] as const;

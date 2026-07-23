@@ -1,1 +1,1 @@
-export { default } from "../../../../../../src/screens/InstitutionAddEditScreen";
+export { default } from "../../../../../../src/screens/LedgerClientAddEditScreen";

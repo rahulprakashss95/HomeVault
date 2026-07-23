@@ -15,7 +15,19 @@ const contactLine = (client: LedgerClientModel) =>
     .filter(Boolean)
     .join(" · ");
 
-const LedgerClientListScreen = () => {
+type Props = {
+  /**
+   * Where this list's rows and its + button navigate. There is one contacts
+   * directory but two ways in — Ledger for the people who pay you, Accounts for
+   * the banks and borrowers — and each stays inside its own tab's stack so a
+   * member holding only one of the two tiles can still reach it.
+   */
+  basePath?: string;
+};
+
+const LedgerClientListScreen = ({
+  basePath = "/ledger/clients",
+}: Props = {}) => {
   const router = useRouter();
   const { colors } = useTheme();
   const { user } = useAuth();
@@ -41,7 +53,7 @@ const LedgerClientListScreen = () => {
   );
 
   const navigateAddEdit = (data: LedgerClientModel | null) => {
-    router.push(data ? `/ledger/clients/${data.id}` : "/ledger/clients/new");
+    router.push(`${basePath}/${data ? data.id : "new"}`);
   };
 
   return (
@@ -50,12 +62,12 @@ const LedgerClientListScreen = () => {
       sections={sections}
       hideSectionHeaders
       keyOf={(item) => item.id}
-      noun="client"
-      addLabel="Add client"
+      noun="contact"
+      addLabel="Add contact"
       onAdd={() => navigateAddEdit(null)}
       emptyIcon="people-outline"
-      emptyTitle="No clients yet"
-      emptyBody="Tap the + button to add whoever pays you."
+      emptyTitle="No contacts yet"
+      emptyBody="Tap the + button to add a person, bank or firm."
       renderItem={(item, position) => (
         <GroupedRow
           icon="person-outline"

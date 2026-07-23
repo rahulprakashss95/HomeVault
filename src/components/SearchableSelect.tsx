@@ -34,6 +34,12 @@ type Props = {
   selectedName?: string;
   options: Option[];
   onSelect: (id: string, name: string) => void;
+  /**
+   * Whether the sheet offers a search box. Off for short fixed lists (a record
+   * type, say), where a search field is one more thing to dismiss and pops the
+   * keyboard over the very options you came to read.
+   */
+  searchable?: boolean;
   /** Label for the add row and the popup title, e.g. "Add bank". Omit to hide add. */
   addLabel?: string;
   /** Renders the entity's full form inside the add popup. Omit to hide add. */
@@ -52,6 +58,7 @@ const SearchableSelect = ({
   selectedName,
   options,
   onSelect,
+  searchable = true,
   addLabel,
   renderAddForm,
 }: Props) => {
@@ -82,9 +89,15 @@ const SearchableSelect = ({
     };
   }, [open]);
 
+  // A directory sorts alphabetically because you scan or search it. A fixed
+  // short list is authored in a meaningful order (broadest type first, say) and
+  // must keep it — which is the same list `searchable` distinguishes.
   const sorted = useMemo(
-    () => [...options].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "")),
-    [options]
+    () =>
+      searchable
+        ? [...options].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""))
+        : options,
+    [options, searchable]
   );
   const selected = sorted.find((option) => option.id === selectedId);
   const fieldLabel = selected?.name ?? (selectedId ? selectedName ?? "" : "");
@@ -143,18 +156,22 @@ const SearchableSelect = ({
               { maxHeight: windowHeight - keyboardHeight - 120 },
             ]}
           >
-            <View style={styles.searchRow}>
-              <Ionicons name="search" size={18} color={colors.textMuted} />
-              <TextInput
-                style={styles.searchInput}
-                value={query}
-                onChangeText={setQuery}
-                placeholder={`Search ${label.toLowerCase()}`}
-                placeholderTextColor={colors.placeholder}
-                autoFocus
-                returnKeyType="done"
-              />
-            </View>
+            {searchable ? (
+              <View style={styles.searchRow}>
+                <Ionicons name="search" size={18} color={colors.textMuted} />
+                <TextInput
+                  style={styles.searchInput}
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder={`Search ${label.toLowerCase()}`}
+                  placeholderTextColor={colors.placeholder}
+                  autoFocus
+                  returnKeyType="done"
+                />
+              </View>
+            ) : (
+              <Text style={styles.sheetTitle}>{label}</Text>
+            )}
 
             <FlatList
               data={filtered}
@@ -290,6 +307,18 @@ const createStyles = (colors: ThemeColors) =>
       flex: 1,
       fontSize: 15,
       color: colors.text,
+    },
+    // Stands in for the search row when there's nothing to search: without it
+    // the sheet opens as a bare list of options with no idea what it's choosing.
+    sheetTitle: {
+      fontSize: 13,
+      fontWeight: "600",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      color: colors.textMuted,
+      paddingHorizontal: 8,
+      paddingTop: 4,
+      paddingBottom: 12,
     },
     list: {
       flexGrow: 0,

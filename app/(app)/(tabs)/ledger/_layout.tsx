@@ -26,8 +26,8 @@ export default function LedgerStack() {
       <Stack.Screen name="savings/index" options={{ title: "Savings" }} />
       <Stack.Screen name="savings/[id]" options={{ title: "Saving" }} />
       <Stack.Screen name="setup/index" options={{ title: "Setup" }} />
-      <Stack.Screen name="clients/index" options={{ title: "Clients" }} />
-      <Stack.Screen name="clients/[id]" options={{ title: "Client" }} />
+      <Stack.Screen name="clients/index" options={{ title: "Contacts" }} />
+      <Stack.Screen name="clients/[id]" options={{ title: "Contact" }} />
       <Stack.Screen
         name="earning-types/[id]"
         options={{ title: "Earning Type" }}

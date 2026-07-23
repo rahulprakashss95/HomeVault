@@ -102,31 +102,6 @@ export const DepositListSkeleton = ({ count = 3 }: { count?: number }) => {
   );
 };
 
-/** Mirrors a bank row: initials avatar, name, contact line. */
-export const BankListSkeleton = ({ count = 6 }: { count?: number }) => {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-
-  return (
-    <View accessibilityLabel="Loading banks">
-      <View style={styles.summaryRow}>
-        <Skeleton width={90} height={12} />
-      </View>
-
-      {Array.from({ length: count }).map((_, index) => (
-        <View key={index} style={styles.clientCard}>
-          <View style={styles.clientRow}>
-            <Skeleton width={46} height={46} radius={23} />
-            <View style={styles.clientDetails}>
-              <Skeleton width={120} height={16} />
-              <Skeleton width={150} height={12} style={styles.mt8} />
-            </View>
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-};
 
 /** Mirrors a grouped list: a section heading over a card of rows. */
 export const GroupedListSkeleton = ({ groups = 2 }: { groups?: number }) => {
@@ -320,20 +295,6 @@ const createStyles = (colors: ThemeColors) =>
       padding: 16,
       marginHorizontal: 16,
       marginBottom: 14,
-    },
-    clientCard: {
-      backgroundColor: colors.card,
-      borderRadius: 16,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      padding: 16,
-      marginHorizontal: 16,
-      // Matches BankScreen's card spacing, not the deposit list's.
-      marginBottom: 12,
-    },
-    clientRow: {
-      flexDirection: "row",
-      alignItems: "center",
     },
     documentHeader: {
       flexDirection: "row",

@@ -72,7 +72,7 @@ const LedgerScreen = () => {
           <FeatureTile
             wide
             title="Setup"
-            subtitle="Earning types, clients & expense types"
+            subtitle="Earning types, contacts & expense types"
             accent={colors.accentViolet}
             renderIcon={(color) => (
               <Ionicons name="options-outline" size={24} color={color} />

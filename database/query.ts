@@ -57,7 +57,6 @@ import type {
   SavingInput,
   SavingModel,
 } from "../src/models/LedgerModel";
-import type { BankInput, BankModel } from "../src/models/BankModel";
 import type {
   ExpenseInput,
   ExpenseModel,
@@ -87,7 +86,6 @@ import supabase, { callAuth } from "./client";
 const FAMILIES = "families";
 const FAMILY_SETTINGS = "family_settings";
 const LOGIN_USERS = "login_users";
-const BANKS = "banks";
 const ACCOUNTS = "accounts";
 const GOVERNMENT_DOCUMENTS = "government_records";
 const BANK_DOCUMENTS = "bank_records";
@@ -208,7 +206,9 @@ const PROMOTED: Record<string, Record<string, Promoted>> = {
   accounts: {
     balance: { column: "balance", kind: "number" },
     accountType: { column: "account_type", kind: "text" },
-    bankId: { column: "bank_id", kind: "text" },
+    // The column keeps the `bank_id` name it was created with; the directory it
+    // points into now holds people as well as banks. See AccountModel.contactId.
+    contactId: { column: "bank_id", kind: "text" },
     balanceAsOf: { column: "balance_as_of", kind: "date" },
     depositedDate: { column: "deposited_on", kind: "date" },
     maturityDate: { column: "matures_on", kind: "date" },
@@ -995,15 +995,6 @@ export const getLoginUsers = getFamilyUsers;
 /* ------------------------------------------------------------------ *
  * Domain collections (all scoped to the active family + visibility)
  * ------------------------------------------------------------------ */
-
-export const getBanks = () => listScoped<BankModel>(BANKS);
-
-export const addBank = (input: BankInput) => saveScoped(BANKS, input);
-
-export const updateBank = (refId: string, input: BankInput) =>
-  saveScoped(BANKS, input, refId);
-
-export const deleteBank = (id: string) => deleteRecord(BANKS, id);
 
 export const getAccounts = () => listScoped<AccountModel>(ACCOUNTS);
 

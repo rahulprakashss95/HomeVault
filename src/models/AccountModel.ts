@@ -11,11 +11,21 @@ import type { Creatable, Owned } from "./common";
  * A bank, a finance company and any other institution are one category here:
  * each can hold both normal money and deposits, so the *money-kind* is what the
  * type distinguishes, not the institution. The list groups these types into
- * three sections — Balances, Deposits and Cash in Hand — via `accountSection`.
+ * sections — Balances, Deposits, Cash in Hand and the two loan sections — via
+ * `accountSection`.
  *
  * `balance` is the number net worth sums, maintained as a snapshot the user
  * edits (see the schema note). The deposit-only fields (`principal`, interest,
  * dates) stay blank for a balance or cash and live in jsonb.
+ *
+ * "Lent" and "Borrowed" are the two directions money can be owed: owed *to* you
+ * and owed *by* you. "Borrowed" reads as "Loan" in the UI — a bank loan and a
+ * sum borrowed from a relative are the same record here, so one type covers
+ * both. They are balances like any other — a hand-maintained outstanding figure
+ * rather than a repayment ledger — but "Borrowed" is the one type whose balance
+ * counts *against* net worth. See `isLiability`; the stored number is always
+ * positive and the sign is derived from the type, so nothing downstream can sum
+ * a negative into the wrong place.
  */
 
 export const ACCOUNT_TYPES = [
@@ -23,6 +33,8 @@ export const ACCOUNT_TYPES = [
   "Fixed Deposit",
   "Recurring Deposit",
   "Cash",
+  "Lent",
+  "Borrowed",
 ] as const;
 
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
@@ -30,14 +42,19 @@ export type AccountType = (typeof ACCOUNT_TYPES)[number];
 /**
  * What each type is *called* in the UI, kept separate from the stored value so a
  * wording change never means migrating rows. "Cash" stores as before but reads
- * as "Cash in Hand" — the section it lives under is now "Cash & Deposits", and
+ * as "Cash in Hand" — the module it lives under is "Cash, Deposits & Dues", and
  * an umbrella sharing its name with one of its own tabs reads as a mistake.
+ * "Borrowed" reads as "Loan": there is no separate loan type, because a bank
+ * loan and money borrowed from a person are the same fields pointing the same
+ * way, and "Loan" is the word people look for.
  */
 const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   "Account Balance": "Account Balance",
   "Fixed Deposit": "Fixed Deposit",
   "Recurring Deposit": "Recurring Deposit",
   Cash: "Cash in Hand",
+  Lent: "Lent Out",
+  Borrowed: "Loan",
 };
 
 /** Display name for a stored type; unknown legacy types show as-is. */
@@ -54,6 +71,25 @@ export const MATURING_ACCOUNT_TYPES: readonly string[] = [
 export const isMaturingAccount = (accountType: string): boolean =>
   MATURING_ACCOUNT_TYPES.includes(accountType);
 
+/** The lending types: they have a counterparty and a due date. */
+export const LOAN_ACCOUNT_TYPES: readonly string[] = ["Lent", "Borrowed"];
+
+/**
+ * True for money lent out or borrowed. Deliberately separate from
+ * `isMaturingAccount`: a loan reuses `maturityDate` for its due date, but none
+ * of the deposit machinery (principal, interest payout, instalments) applies.
+ */
+export const isLoanAccount = (accountType: string): boolean =>
+  LOAN_ACCOUNT_TYPES.includes(accountType);
+
+/**
+ * True for the one type whose balance is money *owed*, not held. Every place
+ * that totals accounts must consult this: balances are stored positive
+ * regardless of direction, so this is the only thing that carries the sign.
+ */
+export const isLiability = (accountType: string): boolean =>
+  accountType === "Borrowed";
+
 /**
  * How a Fixed Deposit pays its interest. Monthly/Quarterly pay a periodic
  * amount (derivable from principal × rate); "On Maturity" pays nothing until the
@@ -67,20 +103,29 @@ export const INTEREST_FREQUENCIES = [
 
 export type InterestFrequency = (typeof INTEREST_FREQUENCIES)[number];
 
-/** The three groups the list and overview organise accounts into. */
-export const ACCOUNT_SECTIONS = ["Balances", "Deposits", "Cash in Hand"] as const;
+/** The groups the list and overview organise accounts into. */
+export const ACCOUNT_SECTIONS = [
+  "Balances",
+  "Deposits",
+  "Cash in Hand",
+  "Lent Out",
+  "Loans",
+] as const;
 
 export type AccountSection = (typeof ACCOUNT_SECTIONS)[number];
 
 /**
- * Which section an account belongs to. Deposits mature; cash is cash; anything
- * else is normal money held at an institution. Written to tolerate legacy rows:
- * the retired "Savings Account" and "Financier / Non-FD" types both fall
- * through to Balances, so old data groups correctly without a migration.
+ * Which section an account belongs to. Deposits mature; cash is cash; loans go
+ * to their own two sections so an amount owed is never shown next to one held;
+ * anything else is normal money held at an institution. Written to tolerate
+ * legacy rows: the retired "Savings Account" and "Financier / Non-FD" types both
+ * fall through to Balances, so old data groups correctly without a migration.
  */
 export const accountSection = (accountType: string): AccountSection => {
   if (isMaturingAccount(accountType)) return "Deposits";
   if (accountType === "Cash") return "Cash in Hand";
+  if (accountType === "Lent") return "Lent Out";
+  if (accountType === "Borrowed") return "Loans";
   return "Balances";
 };
 
@@ -102,17 +147,31 @@ export type AccountModel = Owned & {
   accountType: string;
   /** What to call it, e.g. "HDFC Savings" or "Muthoot Deposit". */
   name: string;
-  /** `banks` row id when it sits with a bank in the directory; else "". */
-  bankId: string;
+  /**
+   * The other party to this record — the bank a balance sits with, or the
+   * person a loan is with. One directory serves both (`ledger_clients`, see
+   * `LedgerClientModel`): asking which of two lists to look in was the whole
+   * problem. Blank for cash, which has no counterparty.
+   *
+   * Stored in the `bank_id` column, which keeps its name: it is data, and
+   * renaming it would cost a migration to say something the model already says.
+   */
+  contactId: string;
   /**
    * Free-text institution — a financier, or a bank not worth adding to the
-   * directory. Shown when there is no `bankId`.
+   * directory. Shown when there is no `contactId`.
    */
   institution: string;
   /** The current balance — the figure net worth sums. Maintained as a snapshot. */
   balance: string;
   /** When `balance` was last set. DATE_FORMAT. */
   balanceAsOf: string;
+  /**
+   * Free-text note — the account number's last digits, where the passbook is
+   * kept, what a loan was for. Applies to every type, so it isn't in any of the
+   * type-specific blocks below. Stored in jsonb.
+   */
+  notes: string;
 
   // Deposit-only (Fixed / Recurring). Blank for an account balance, cash, etc.
   /** Amount originally deposited — also mirrored into `balance` for net worth. */
@@ -136,6 +195,13 @@ export type AccountModel = Owned & {
   months: string;
   /** Paid flag per instalment (index 0 = first month); length tracks `months`. */
   payments?: boolean[];
+
+  // Lent / Borrowed add no fields of their own. The counterparty is
+  // `contactId` like every other type, and the terms reuse the deposit columns
+  // rather than adding new ones: `depositedDate` is when the money changed
+  // hands, `maturityDate` when it is due back (so the existing
+  // `accounts_family_matures_idx` orders loans by due date for free), and
+  // `interestPercentage` the rate where one was agreed.
 };
 
 export type AccountInput = Creatable<AccountModel>;

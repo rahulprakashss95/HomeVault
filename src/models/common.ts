@@ -39,7 +39,7 @@ export const MODULES = [
       { key: "ornaments", label: "Ornaments" },
       { key: "properties", label: "Properties" },
       { key: "vehicles", label: "Vehicles" },
-      { key: "accounts", label: "Cash & Deposits" },
+      { key: "accounts", label: "Cash, Deposits & Dues" },
     ],
   },
   {

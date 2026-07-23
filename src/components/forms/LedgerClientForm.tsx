@@ -21,7 +21,7 @@ import ReadOnlyGuard from "../ReadOnlyGuard";
 import VisibilityToggle from "../VisibilityToggle";
 
 type Props = {
-  /** The client being edited, or null/undefined to add a new one. */
+  /** The contact being edited, or null/undefined to add a new one. */
   initial?: LedgerClientModel | null;
   /** Called with the stored record after a successful save. */
   onSaved: (saved: LedgerClientModel) => void;
@@ -30,9 +30,10 @@ type Props = {
 };
 
 /**
- * The ledger-client form fields + save/delete, shared by the full-screen
- * add/edit and the "Add client" popup on the earning/saving forms. Owns its own
- * state and writes; the parent supplies the scroll container.
+ * The contact form fields + save/delete, shared by the full-screen add/edit and
+ * every "Add contact" popup — the earning and saving forms, and the account
+ * form's counterparty picker. Owns its own state and writes; the parent
+ * supplies the scroll container.
  */
 const LedgerClientForm = ({ initial, onSaved, onDeleted }: Props) => {
   const client = initial ?? null;
@@ -61,7 +62,7 @@ const LedgerClientForm = ({ initial, onSaved, onDeleted }: Props) => {
 
   const handleSave = () => {
     if (!name.trim()) {
-      showToast("error", "Incomplete form", "Enter the client's name.", "bottom");
+      showToast("error", "Incomplete form", "Enter the name.", "bottom");
       return;
     }
 
@@ -90,8 +91,8 @@ const LedgerClientForm = ({ initial, onSaved, onDeleted }: Props) => {
 
   const handleDelete = () => {
     showConfirmationAlert(
-      "Delete client",
-      "Earnings and savings already recorded against this client are kept. Continue?"
+      "Delete contact",
+      "Records already saved against this contact — earnings, savings and accounts — are kept. Continue?"
     ).then((confirmed) => {
       if (!confirmed) {
         return;
@@ -118,14 +119,14 @@ const LedgerClientForm = ({ initial, onSaved, onDeleted }: Props) => {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Client</Text>
+          <Text style={styles.sectionTitle}>Contact</Text>
 
           <Text style={styles.label}>Name</Text>
           <TextInput
             style={[styles.input, styles.inputSpacing]}
             onChangeText={setName}
             value={name}
-            placeholder="e.g. Acme Corp"
+            placeholder="e.g. Acme Corp, HDFC Bank, Ravi"
             placeholderTextColor={colors.placeholder}
             autoCapitalize="words"
           />
@@ -172,7 +173,7 @@ const LedgerClientForm = ({ initial, onSaved, onDeleted }: Props) => {
             style={[styles.input, styles.multiline]}
             onChangeText={setDescription}
             value={description}
-            placeholder="Anything worth remembering about this client…"
+            placeholder="Anything worth remembering about them…"
             placeholderTextColor={colors.placeholder}
             multiline
             numberOfLines={4}
@@ -183,7 +184,7 @@ const LedgerClientForm = ({ initial, onSaved, onDeleted }: Props) => {
 
       {!readOnly && (
         <Button
-          title={isEdit ? "Save changes" : "Add client"}
+          title={isEdit ? "Save changes" : "Add contact"}
           onPress={handleSave}
           buttonStyle={styles.primaryButton}
         />
@@ -195,7 +196,7 @@ const LedgerClientForm = ({ initial, onSaved, onDeleted }: Props) => {
           accessibilityRole="button"
           style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
         >
-          <Text style={styles.deleteText}>Delete client</Text>
+          <Text style={styles.deleteText}>Delete contact</Text>
         </Pressable>
       )}
     </>

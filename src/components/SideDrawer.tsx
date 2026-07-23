@@ -47,7 +47,7 @@ const TREE: Node[] = [
       { label: "Earnings", icon: "trending-up-outline", href: "/ledger/earnings" },
       { label: "Expenses", icon: "receipt-outline", href: "/ledger/expenses" },
       { label: "Savings", icon: "wallet-outline", href: "/ledger/savings" },
-      { label: "Clients", icon: "people-outline", href: "/ledger/clients" },
+      { label: "Contacts", icon: "people-outline", href: "/ledger/clients" },
       { label: "Overview", icon: "stats-chart-outline", href: "/ledger/overview" },
     ],
   },
@@ -60,7 +60,7 @@ const TREE: Node[] = [
       { label: "Properties", icon: "home-outline", href: "/assets/properties" },
       { label: "Vehicles", icon: "car-outline", href: "/assets/vehicles" },
       {
-        label: "Cash & Deposits",
+        label: "Cash, Deposits & Dues",
         icon: "card-outline",
         href: "/assets/accounts",
       },

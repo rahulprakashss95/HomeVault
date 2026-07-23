@@ -69,7 +69,6 @@ const MODULE_ORDER: ModuleKey[] = ["documents", "assets", "ledger"];
 
 const SEGMENT_ACCENT: Record<WorthSegment["key"], keyof ThemeColors> = {
   deposits: "accentBlue",
-  savings: "positive",
   gold: "accentAmber",
   property: "accentViolet",
 };
@@ -415,28 +414,41 @@ const AttentionCard = ({
         </View>
       ) : (
         <>
-          {maturities.slice(0, 4).map((item: MaturityItem) => (
-            <View key={`m-${item.id}`} style={styles.attnRow}>
-              <View
-                style={[
-                  styles.attnIcon,
-                  { backgroundColor: tint(colors.accentBlue) },
-                ]}
-              >
-                <Ionicons name="cash-outline" size={16} color={colors.accentBlue} />
+          {maturities.slice(0, 4).map((item: MaturityItem) => {
+            // A deposit reaching its date is money arriving; a loan reaching its
+            // date is a debt falling due. Same row, opposite news.
+            const isLoan = item.kind !== "deposit";
+            const accent =
+              item.kind === "borrowed" ? colors.negative : colors.accentBlue;
+            let title = `FD at ${item.bankName}`;
+            if (item.kind === "lent") title = `Lent to ${item.bankName}`;
+            if (item.kind === "borrowed") title = `Owed to ${item.bankName}`;
+            let verb = item.daysUntil < 0 ? "Matured" : "Matures";
+            if (isLoan) verb = item.daysUntil < 0 ? "Was due" : "Due";
+
+            return (
+              <View key={`m-${item.id}`} style={styles.attnRow}>
+                <View
+                  style={[styles.attnIcon, { backgroundColor: tint(accent) }]}
+                >
+                  <Ionicons
+                    name={isLoan ? "swap-horizontal-outline" : "cash-outline"}
+                    size={16}
+                    color={accent}
+                  />
+                </View>
+                <View style={styles.attnText}>
+                  <Text style={styles.attnTitle} numberOfLines={1}>
+                    {title}
+                  </Text>
+                  <Text style={styles.attnMeta}>
+                    {verb} {whenLabel(item.date, item.daysUntil, "· overdue")}
+                  </Text>
+                </View>
+                <Text style={styles.attnAmount}>{rupees(item.amount)}</Text>
               </View>
-              <View style={styles.attnText}>
-                <Text style={styles.attnTitle} numberOfLines={1}>
-                  FD at {item.bankName}
-                </Text>
-                <Text style={styles.attnMeta}>
-                  {item.daysUntil < 0 ? "Matured" : "Matures"}{" "}
-                  {whenLabel(item.date, item.daysUntil, "· overdue")}
-                </Text>
-              </View>
-              <Text style={styles.attnAmount}>{rupees(item.amount)}</Text>
-            </View>
-          ))}
+            );
+          })}
 
           {paymentsDue.slice(0, 4).map((item: PaymentDueItem, index) => (
             <View key={`p-${item.propertyId}-${index}`} style={styles.attnRow}>

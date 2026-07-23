@@ -105,7 +105,9 @@ export const QUICK_ACCESS_ITEMS: QuickAccessItem[] = [
   // ---- Assets -------------------------------------------------------------
   {
     id: "open-accounts",
-    label: "Cash & Deposits",
+    // Abbreviated deliberately: the module is "Cash, Deposits & Dues", which a
+    // chip four-to-a-row can't hold.
+    label: "Cash & Dues",
     icon: "card-outline",
     accent: "accentBlue",
     href: "/assets/accounts",
@@ -197,7 +199,7 @@ export const QUICK_ACCESS_ITEMS: QuickAccessItem[] = [
   },
   {
     id: "add-client",
-    label: "Add client",
+    label: "Add contact",
     icon: "person-add-outline",
     accent: "accentBlue",
     href: "/ledger/clients/new",
